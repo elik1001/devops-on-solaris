@@ -54,12 +54,12 @@ import rad.auth as rada
 <h4>Application Layout Details</h4>
 The directory layout are explained below.
 <ol>
-<li><b>bin/clone_zfs.py: main script, to create/delete/stats clones</b></li>
-<li><b>bin/fork_clones.py: stress test / fork script - run with with the argument [number simultaneous runs]</b></li>
-<li><b>/opt/cloneFiles: directory contains smf related scripts - create on source zone to be cloned on evrey zone</b></li>
-<li><b>/opt/cloneFiles/getIpPort.sh: script to populele the getIpPort SMF with IP Adress/Port information.</b></li>  
-<li><b>/opt/cloneFiles/getIpPort.xml: smf to run the script to populele the getIpPort SMF with IP Adress/Port information.</b></li> 
-<li><b>/opt/cloneFiles/mount_apps1.xml: smf to mount the ZFS cloned file system</b></li>
+<li><b>bin/clone_zfs.py:</b> main script, to create/delete/stats clones</li>
+<li><b>bin/fork_clones.py:</b> stress test / fork script - run with with the argument [number simultaneous runs]</li>
+<li><b>/opt/cloneFiles:</b> directory contains smf related scripts - create on source zone to be cloned on evrey zone</li>
+<li><b>/opt/cloneFiles/getIpPort.sh:</b> script to populele the getIpPort SMF with IP Adress/Port information.</li>  
+<li><b>/opt/cloneFiles/getIpPort.xml:</b> smf to run the script to populele the getIpPort SMF with IP Adress/Port information.</li> 
+<li><b>/opt/cloneFiles/mount_apps1.xml:</b> smf to mount the ZFS cloned file system</li>
 </ol>
 
 For the full installation details you can follow this document <a href="docs/README.md">installation documentation</a>.
@@ -206,7 +206,7 @@ zoneadm list -cv
  105 z-1539625866-jir146 running     /zones/z-1539625866-jir146   solaris    excl  
  765 z-1539792929-jir100 running     /zones/z-1539792929-jir100   solaris    excl  
    - z-source         installed   /zones/z-source              solaris    excl  
-</pr>
+</pre>
 
 <p>Screen shout of the associated ZFS Appliance snap/clone(s).
 <br><img src="images/zfssa-apps-snap.png" alt="ZFSSA snap/clones" align="middle" height="50%"></p>
