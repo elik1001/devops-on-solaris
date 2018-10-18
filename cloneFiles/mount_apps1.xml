@@ -1,0 +1,30 @@
+<?xml version='1.0'?>
+<!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
+<service_bundle type='manifest' name='export'>
+  <service name='application/apps1_mount' type='service' version='0'>
+    <create_default_instance enabled='false'/>
+    <single_instance/>
+    <dependency name='multi-user-server' grouping='require_all' restart_on='none' type='service'>
+      <service_fmri value='svc:/milestone/multi-user-server:default'/>
+    </dependency>
+    <dependency name='dns-client' grouping='require_all' restart_on='none' type='service'>
+      <service_fmri value='svc:/network/dns/client:default'/>
+    </dependency>
+    <dependency name='network' grouping='require_all' restart_on='error' type='service'>
+      <service_fmri value='svc:/milestone/network'/>
+    </dependency>
+    <exec_method name='start' type='method' exec="mount dc1nas2a-web:/export/apps1_`hostname` /apps1" timeout_seconds='10'>
+    </exec_method>
+    <exec_method name='stop' type='method' exec='umount -f /apps1' timeout_seconds='0'>
+    </exec_method>
+    <property_group name='startd' type='framework'>
+      <propval name='duration' type='astring' value='transient'/>
+    </property_group>
+    <stability value='Stable'/>
+    <template>
+      <common_name>
+        <loctext xml:lang='C'>Mount /apps1</loctext>
+      </common_name>
+    </template>
+  </service>
+</service_bundle>
