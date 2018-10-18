@@ -1,4 +1,4 @@
-I will try to describe an exmaple environment below, how to configure.
+Below is described the installation and configuration process.
 
 <ol>
     <li>On the Solaris Global Zone, will be using a private switch (etherstub) for all zones.</li>
@@ -622,4 +622,4 @@ svccfg -s svc:/network/dhcp/server:ipv4 setprop config/debug=true
 svcadm refresh svc:/network/dhcp/server:ipv4
 </pre>
 
-In part 2 Will continue to configure the source zone and SMF services. you can jump to Part 2 by clicking here.
+<a href="solaris-devops-part2.md">Click here</a> to read <a href="solaris-devops-part2.md">Part 2</a> hot to configure the source zone and SMF services.
