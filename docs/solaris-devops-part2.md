@@ -1,4 +1,4 @@
-This is part 2, in Part 1 I described the challenge we try to address as well as the process to configure the network switch, DHCP. Below will continue to configure the source zone as well as all associated SMF services.
+This is <a href="solaris-devops-part1.md">Part 2</a>, in <a href="solaris-devops-part1.md">Part 1</a> I described the challenge we try to address as well as the process to configure the network switch, DHCP. Below will continue to configure the source zone as well as all associated SMF services.
 
 <h4>Solaris source zone configuration</h4>
 Next, lets create a source zone, you do so by running the below.
