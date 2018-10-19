@@ -57,7 +57,7 @@ getIpPort.sh  getIpPort.xml  mount_apps1.xml sc_profile.xml
 </pre>
 Now, lets create the SMF service by creating the below files.
 <br>cat mount_apps1.xml
-```
+```xml
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
 <service_bundle type='manifest' name='export'>
