@@ -49,14 +49,14 @@ Completed the template config by pressing f2, fill with something like the below
 <li><b>Login/Password: </b>admin/password (or whatever you like)</li>
 </ol>
 Next, we are going to add a few servicess to help in the zone clone process.
-Create the below directory and 4 files.
+<br>Create the below directory and <i>4</i> files.
 <pre>
 mkdir -p /opt/cloneFiles
 ls
 getIpPort.sh  getIpPort.xml  mount_apps1.xml sc_profile.xml
 </pre>
 Now, lets create the SMF service by creating the below files.
-cat mount_apps1.xml
+<br>cat mount_apps1.xml
 <pre>
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
@@ -90,7 +90,7 @@ cat mount_apps1.xml
 </service_bundle>
 </pre>
 Next, create the application below. this will populate your IP address and port for latter retrieval.
-<i>Note: </i>The file below contains your IP to Port mappings that is latter used in the clone script.
+<br><i>Note: </i>The file below contains your IP to Port mappings that is latter used in the clone script.
 cat getIpPort.sh
 <pre>
 #!/bin/bash
@@ -615,11 +615,13 @@ port=`echo $ipPort |awk -F\: '{print $2}'`
 
 svccfg -s svc:/network/getIpPort:ip setprop config/ip_addr = astring: $addr
 svccfg -s svc:/network/getIpPort:ip setprop config/ip_port = astring: $port
-
-# Make the application excutable
+</pre>
+Make the application excutable
+<pre>
 chmod +x getIpPort.sh
 </pre>
-cat getIpPort.xml
+Create the getIpPort SMF xml file.
+<br>cat getIpPort.xml
 <pre>
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
@@ -651,7 +653,36 @@ cat getIpPort.xml
   </service>
 </service_bundle>
 </pre>
-On the Global zone, create the below <i>sc_profile.xml</i> file (or use sysconfig to generate  one).
+Create the SMF services by importing.
+<pre>
+# Import SMF service
+svccfg import getIpPort.xml
+svccfg import mount_apps1.xml
+
+# Verify the new services
+svcs mount_apps1 getIpPort
+root@z-source:~# svcs apps1_mount getIpPort
+STATE          STIME    FMRI
+disabled       12:24:32 svc:/application/apps1_mount:default
+online         12:24:35 svc:/network/getIpPort:ip
+</pre>
+Switch the zone to use DHCP before creating / running the sysconfig to create the profile, this will be used in all clones, do so by running the below.
+<pre>
+ipadm create-addr -T dhcp net0/v4
+</pre>
+Next, create source template on the Global Zone, this template will be used for all zones when the script will do the cloning.
+<pre>
+sysconfig create-profile -o /opt/sc_profile.xml
+</pre>
+For the template use something like the below configuration.
+<ol>
+<li><b>Or Select:</b> Automatically Since we will be using DHCP in all clones</li>
+<li><b>DNS: </b>8.8.8.8</li>
+<li><b>Domain: </b>example.com</li>
+<li><b>Language: </b>US/Eastern</li>
+<li><b>Login/Password: </b>admin/password (or whatever you like)</li>
+</ol>
+An exmaple is below <i>/opt/sc_profile.xml</i> file (or use sysconfig to generate  one).
 <pre>
 <?xml version='1.0' encoding='US-ASCII'?>
 <!DOCTYPE service_bundle SYSTEM "/usr/share/lib/xml/dtd/service_bundle.dtd.1">
@@ -716,35 +747,6 @@ On the Global zone, create the below <i>sc_profile.xml</i> file (or use sysconfi
   </service>
 </service_bundle>
 </pre>
-Create the SMF services by importing.
-<pre>
-# Import SMF service
-svccfg import getIpPort.xml
-svccfg import mount_apps1.xml
-
-# Verify the new services
-svcs mount_apps1 getIpPort
-root@z-source:~# svcs apps1_mount getIpPort
-STATE          STIME    FMRI
-disabled       12:24:32 svc:/application/apps1_mount:default
-online         12:24:35 svc:/network/getIpPort:ip
-</pre>
-Switch the zone to use DHCP before creating / running the sysconfig to create the profile, this will be used in all clones, do so by running the below.
-<pre>
-ipadm create-addr -T dhcp net0/v4
-</pre>
-Next, create source template, this template will be used for all zones when the script will do the cloning.
-<pre>
-sysconfig create-profile -o /opt/sc_profile.xml
-</pre>
-For the template use something like the below configuration.
-<ol>
-<li><b>Or Select:</b> Automatically Since we will be using DHCP in all clones</li>
-<li><b>DNS: </b>8.8.8.8</li>
-<li><b>Domain: </b>example.com</li>
-<li><b>Language: </b>US/Eastern</li>
-<li><b>Login/Password: </b>admin/password (or whatever you like)</li>
-</ol>
 
 Make sure to shutdown the <i>z-source</i> zone, otherwise the clone process wont work.
 <pre>
@@ -760,7 +762,7 @@ online         17:45:37 svc:/system/rad:local-http
 online         17:45:37 svc:/system/rad:remote
 </pre>
 Also make sure you have the RAD modules installed, do so by running the below.
-<i>Note: </i>In 11.4 you shuld have twice the amount from below.
+<br><i>Note: </i>In 11.4 you shuld have twice the amount from below.
 <pre>
 pkg list |grep rad
 group/system/management/rad/rad-server-interfaces 0.5.11-0.175.3.29.0.4.0    i--
@@ -830,7 +832,7 @@ hostGz = 'solaris-global-name'
 src_zone = "z-source"
 
 </pre>
-
+Cloning a zone.
 <pre>
 ./clone_zfs.py -i jir10
 Cloning VM/Zone z-1539798251-jir10 and associated file systems
