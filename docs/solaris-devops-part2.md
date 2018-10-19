@@ -57,6 +57,7 @@ getIpPort.sh  getIpPort.xml  mount_apps1.xml sc_profile.xml
 </pre>
 Now, lets create the SMF service by creating the below files.
 <br>cat mount_apps1.xml
+
 ```xml
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
@@ -683,6 +684,7 @@ For the template use something like the below configuration.
 <li><b>Login/Password: </b>admin/password (or whatever you like)</li>
 </ol>
 An exmaple is below <i>/opt/sc_profile.xml</i> file (or use sysconfig to generate  one).
+
 ```xml
 <?xml version='1.0' encoding='US-ASCII'?>
 <!DOCTYPE service_bundle SYSTEM "/usr/share/lib/xml/dtd/service_bundle.dtd.1">
