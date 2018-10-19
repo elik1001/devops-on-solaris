@@ -12,7 +12,7 @@ Will be using the Solaris <i>firewalld</i> application to do all that.</li>
 </ol>
 
 <p>To help and better understand I created a network digram below.
-<br><img src="images/network-diag.png" alt="Network Digram" align="middle" height="50%"></p>
+<br><img src="images/gz-network-diag.png" alt="Network Digram" align="middle" height="50%"></p>
 
 
 <h4>Creating a Solaris private switch(etherstub)</h4>
