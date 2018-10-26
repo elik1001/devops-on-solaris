@@ -4,7 +4,7 @@
 #author          :Eli Kleinman
 #release date    :20181018
 #update date     :20181026
-#version         :0.4
+#version         :0.5
 #usage           :python clone_zfs.py
 #notes           :
 #python_version  :2.7.14
