@@ -215,7 +215,7 @@ To access the Zone/VM you just ssh to the global-zone port in this example 32078
 <pre>
 ssh global-zone -p 32078
 </pre>
-Similar you can delete the zone by running the below.
+Similar you can delete the zone by running the below (it will delete all associated snaps/clones).
 <pre>
 ./clone_zfs.py -d -i jir10
 Deleting VM/Zone z-1539798251-jir10 and associated snap_z-1539798251-jir10
@@ -224,19 +224,72 @@ Progress is being logged to zone_vm.log
 Uninstall/delete completed successfully.
 </pre>
 
-Log output
+Log output - with associated snaps/clones.
 <pre>
-2018-10-17 13:51:06,128:z-1539798251-jir10:INFO: Deleting VM/Zone z-1539798251-jir10.
-2018-10-17 13:51:06,132:z-1539798251-jir10:INFO: Preparing removal of z-1539798251-jir10.
-2018-10-17 13:51:06,134:z-1539798251-jir10:INFO: Halting z-1539798251-jir10 please wait...
-2018-10-17 13:51:10,839:z-1539798251-jir10:INFO: Halting z-1539798251-jir10 completed successfully.
-2018-10-17 13:51:10,839:z-1539798251-jir10:INFO: Uninstalling z-1539798251-jir10 please wait...
-2018-10-17 13:51:18,020:z-1539798251-jir10:INFO: Uninstalling z-1539798251-jir10 completed successfully.
-2018-10-17 13:51:18,023:z-1539798251-jir10:INFO: Deleteing z-1539798251-jir10 please wait...
-2018-10-17 13:51:18,081:z-1539798251-jir10:INFO: Deleteing z-1539798251-jir10 completed successfully.
-2018-10-17 13:51:18,081:z-1539798251-jir10:INFO: Uninstall/delete of VM/Zone z-1539798251-jir10 completed successfully.
-2018-10-17 13:51:18,081:z-1539798251-jir10:INFO: Deleting clone/snapshot: apps1_z-1539798251-jir10
-2018-10-17 13:51:21,669:z-1539798251-jir10:INFO: Clone/snapshot apps1_z-1539798251-jir10 and associated snap_z-1539798251-jir10 deleted successfully.
+2018-10-26 11:36:46,920:z-1540563221-jir112:INFO: Deleting VM/Zone z-1540563221-jir112.
+2018-10-26 11:36:46,923:z-1540563221-jir112:INFO: Preparing removal of z-1540563221-jir112.
+2018-10-26 11:36:46,924:z-1540563221-jir112:INFO: Halting z-1540563221-jir112 please wait...
+2018-10-26 11:36:51,904:z-1540563221-jir112:INFO: Halting z-1540563221-jir112 completed successfully.
+2018-10-26 11:36:51,904:z-1540563221-jir112:INFO: Uninstalling z-1540563221-jir112 please wait...
+2018-10-26 11:36:59,186:z-1540563221-jir112:INFO: Uninstalling z-1540563221-jir112 completed successfully.
+2018-10-26 11:36:59,188:z-1540563221-jir112:INFO: Deleteing z-1540563221-jir112 please wait...
+2018-10-26 11:36:59,238:z-1540563221-jir112:INFO: Deleteing configuration of z-1540563221-jir112 completed successfully.
+2018-10-26 11:36:59,238:z-1540563221-jir112:INFO: Deleting clone/snapshots related to zone: z-1540563221-jir112
+2018-10-26 11:36:59,238:z-1540563221-jir112:INFO: Vaildating snaps related to zone snap_z-1540563221-jir112
+2018-10-26 11:36:59,525:z-1540563221-jir112:INFO: Snap snap_z-1540563221-jir112 related to zone snap_z-1540563221-jir112, will be deleted.
+2018-10-26 11:36:59,525:z-1540563221-jir112:INFO: Snap snap_z-1540563221-jir112-1540563444 related to zone snap_z-1540563221-jir112, will be deleted.
+2018-10-26 11:36:59,525:z-1540563221-jir112:INFO: Snap snap_z-1540563221-jir112-1540563473 related to zone snap_z-1540563221-jir112, will be deleted.
+2018-10-26 11:36:59,525:z-1540563221-jir112:INFO: Deleting clone/snapshot snap_z-1540563221-jir112
+2018-10-26 11:37:02,883:z-1540563221-jir112:INFO: Clone/snapshot apps1_snap_z-1540563221-jir112 and associated snap_snap_z-1540563221-jir112 deleted successfully.
+2018-10-26 11:37:02,884:z-1540563221-jir112:INFO: Deleting clone/snapshot snap_z-1540563221-jir112-1540563444
+2018-10-26 11:37:06,343:z-1540563221-jir112:INFO: Clone/snapshot apps1_snap_z-1540563221-jir112-1540563444 and associated snap_snap_z-1540563221-jir112-1540563444 deleted successfully.
+2018-10-26 11:37:06,343:z-1540563221-jir112:INFO: Deleting clone/snapshot snap_z-1540563221-jir112-1540563473
+2018-10-26 11:37:09,598:z-1540563221-jir112:INFO: Clone/snapshot apps1_snap_z-1540563221-jir112-1540563473 and associated snap_snap_z-1540563221-jir112-1540563473 deleted successfully.
+2018-10-26 11:37:09,599:z-1540563221-jir112:INFO: Uninstall/delete of VM/Zone z-1540563221-jir112 completed successfully.
+</pre>
+
+Rotaing a zone.
+<pre>
+./clone_zfs.py -r -i jir111
+Rotating /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111.. please wait...
+Rotation of /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111 completed successfully.
+</pre>
+
+Log output rotaing a zone.
+<pre>
+2018-10-26 10:19:03,546:z-1540563543-jir11:INFO: Validating VM/Zone status.. please wait...
+2018-10-26 10:19:04,057:z-1540563543-jir11:INFO: Rotating /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11...
+2018-10-26 10:19:04,063:z-1540563543-jir11:INFO: Verifying VM/Zone z-1540563400-jir11 RAD connection availability.
+2018-10-26 10:19:04,231:z-1540563543-jir11:INFO: RAD server is accessible.
+2018-10-26 10:19:04,275:z-1540563543-jir11:INFO: Cerating snapshot: snap_z-1540563543-jir11
+2018-10-26 10:19:04,810:z-1540563543-jir11:INFO: Snapshot created successfully.
+2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: CLONING file-systems
+2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Source: /apps1
+2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Destination: apps1_z-1540563543-jir11
+2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Please wait...
+2018-10-26 10:19:07,427:z-1540563543-jir11:INFO: Successfully created clone apps1_z-1540563543-jir11
+2018-10-26 10:19:07,427:z-1540563543-jir11:INFO: Setting apps1_z-1540563543-jir11 as /apps1_clone.
+2018-10-26 10:19:07,446:z-1540563543-jir11:INFO: Successfully set apps1_z-1540563543-jir11 as /apps1_clone mount.
+2018-10-26 10:19:07,447:z-1540563543-jir11:INFO: Enabling service related to mount apps1_z-1540563543-jir11, in zone z-1540563400-jir11.
+2018-10-26 10:19:07,468:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563543-jir11 mount. successful.
+2018-10-26 10:19:07,470:z-1540563543-jir11:INFO: Enabling service related to mount rsync, in zone z-1540563400-jir11.
+2018-10-26 10:19:07,491:z-1540563543-jir11:INFO: Service enabled for rsync mount. successful.
+2018-10-26 10:19:08,508:z-1540563543-jir11:INFO: Disableing service related to mount NA in zone z-1540563400-jir11.
+2018-10-26 10:19:08,527:z-1540563543-jir11:INFO: Service enabled for NA mount successful.
+2018-10-26 10:19:08,527:z-1540563543-jir11:INFO: Sync to /apps1_clone(apps1_z-1540563543-jir11) completed sucssfuly.
+2018-10-26 10:19:08,529:z-1540563543-jir11:INFO: Disableing service related to mount rsync in zone z-1540563400-jir11.
+2018-10-26 10:19:08,542:z-1540563543-jir11:INFO: Service enabled for rsync mount successful.
+2018-10-26 10:19:08,545:z-1540563543-jir11:INFO: Disableing service related to mount apps1_z-1540563543-jir11 in zone z-1540563400-jir11.
+2018-10-26 10:19:08,568:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563543-jir11 mount successful.
+2018-10-26 10:19:08,570:z-1540563543-jir11:INFO: Disableing service related to mount apps1_z-1540563400-jir11 in zone z-1540563400-jir11.
+2018-10-26 10:19:08,595:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount successful.
+2018-10-26 10:19:08,595:z-1540563543-jir11:INFO: Renaming snap: from snap_z-1540563400-jir11 to snap_z-1540563400-jir11.
+2018-10-26 10:19:09,694:z-1540563543-jir11:INFO: Renaming clone: from apps1_z-1540563400-jir11 to apps1_z-1540563400-jir11.
+2018-10-26 10:19:12,334:z-1540563543-jir11:INFO: Renaming snap: from snap_z-1540563543-jir11 to snap_z-1540563543-jir11.
+2018-10-26 10:19:13,085:z-1540563543-jir11:INFO: Renaming clone: from apps1_z-1540563543-jir11 to apps1_z-1540563543-jir11.
+2018-10-26 10:19:15,699:z-1540563543-jir11:INFO: Enabling service related to mount apps1_z-1540563400-jir11, in zone z-1540563400-jir11.
+2018-10-26 10:19:15,721:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount. successful.
+2018-10-26 10:19:15,721:z-1540563543-jir11:INFO: Rotation of /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11 completed successfully.
 </pre>
 
 zoneadm output on some cloned zones.
