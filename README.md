@@ -255,41 +255,41 @@ Rotating /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111.. please 
 Rotation of /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111 completed successfully.
 </pre>
 
-Log output rotaing a zone.
+Log output - rotaing a zone.
 <pre>
-2018-10-26 10:19:03,546:z-1540563543-jir11:INFO: Validating VM/Zone status.. please wait...
-2018-10-26 10:19:04,057:z-1540563543-jir11:INFO: Rotating /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11...
-2018-10-26 10:19:04,063:z-1540563543-jir11:INFO: Verifying VM/Zone z-1540563400-jir11 RAD connection availability.
-2018-10-26 10:19:04,231:z-1540563543-jir11:INFO: RAD server is accessible.
-2018-10-26 10:19:04,275:z-1540563543-jir11:INFO: Cerating snapshot: snap_z-1540563543-jir11
-2018-10-26 10:19:04,810:z-1540563543-jir11:INFO: Snapshot created successfully.
-2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: CLONING file-systems
-2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Source: /apps1
-2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Destination: apps1_z-1540563543-jir11
-2018-10-26 10:19:04,811:z-1540563543-jir11:INFO: Please wait...
-2018-10-26 10:19:07,427:z-1540563543-jir11:INFO: Successfully created clone apps1_z-1540563543-jir11
-2018-10-26 10:19:07,427:z-1540563543-jir11:INFO: Setting apps1_z-1540563543-jir11 as /apps1_clone.
-2018-10-26 10:19:07,446:z-1540563543-jir11:INFO: Successfully set apps1_z-1540563543-jir11 as /apps1_clone mount.
-2018-10-26 10:19:07,447:z-1540563543-jir11:INFO: Enabling service related to mount apps1_z-1540563543-jir11, in zone z-1540563400-jir11.
-2018-10-26 10:19:07,468:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563543-jir11 mount. successful.
-2018-10-26 10:19:07,470:z-1540563543-jir11:INFO: Enabling service related to mount rsync, in zone z-1540563400-jir11.
-2018-10-26 10:19:07,491:z-1540563543-jir11:INFO: Service enabled for rsync mount. successful.
-2018-10-26 10:19:08,508:z-1540563543-jir11:INFO: Disableing service related to mount NA in zone z-1540563400-jir11.
-2018-10-26 10:19:08,527:z-1540563543-jir11:INFO: Service enabled for NA mount successful.
-2018-10-26 10:19:08,527:z-1540563543-jir11:INFO: Sync to /apps1_clone(apps1_z-1540563543-jir11) completed sucssfuly.
-2018-10-26 10:19:08,529:z-1540563543-jir11:INFO: Disableing service related to mount rsync in zone z-1540563400-jir11.
-2018-10-26 10:19:08,542:z-1540563543-jir11:INFO: Service enabled for rsync mount successful.
-2018-10-26 10:19:08,545:z-1540563543-jir11:INFO: Disableing service related to mount apps1_z-1540563543-jir11 in zone z-1540563400-jir11.
-2018-10-26 10:19:08,568:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563543-jir11 mount successful.
-2018-10-26 10:19:08,570:z-1540563543-jir11:INFO: Disableing service related to mount apps1_z-1540563400-jir11 in zone z-1540563400-jir11.
-2018-10-26 10:19:08,595:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount successful.
-2018-10-26 10:19:08,595:z-1540563543-jir11:INFO: Renaming snap: from snap_z-1540563400-jir11 to snap_z-1540563400-jir11.
-2018-10-26 10:19:09,694:z-1540563543-jir11:INFO: Renaming clone: from apps1_z-1540563400-jir11 to apps1_z-1540563400-jir11.
-2018-10-26 10:19:12,334:z-1540563543-jir11:INFO: Renaming snap: from snap_z-1540563543-jir11 to snap_z-1540563543-jir11.
-2018-10-26 10:19:13,085:z-1540563543-jir11:INFO: Renaming clone: from apps1_z-1540563543-jir11 to apps1_z-1540563543-jir11.
-2018-10-26 10:19:15,699:z-1540563543-jir11:INFO: Enabling service related to mount apps1_z-1540563400-jir11, in zone z-1540563400-jir11.
-2018-10-26 10:19:15,721:z-1540563543-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount. successful.
-2018-10-26 10:19:15,721:z-1540563543-jir11:INFO: Rotation of /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11 completed successfully.
+2018-10-26 10:18:45,588:z-1540563400-jir11:INFO: Validating VM/Zone status.. please wait...
+2018-10-26 10:18:46,054:z-1540563400-jir11:INFO: Rotating /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11...
+2018-10-26 10:18:46,058:z-1540563400-jir11:INFO: Verifying VM/Zone z-1540563400-jir11 RAD connection availability.
+2018-10-26 10:18:46,237:z-1540563400-jir11:INFO: RAD server is accessible.
+2018-10-26 10:18:46,277:z-1540563400-jir11:INFO: Cerating snapshot: snap_z-1540563525-jir11
+2018-10-26 10:18:46,876:z-1540563400-jir11:INFO: Snapshot created successfully.
+2018-10-26 10:18:46,877:z-1540563400-jir11:INFO: CLONING file-systems
+2018-10-26 10:18:46,877:z-1540563400-jir11:INFO: Source: /apps1
+2018-10-26 10:18:46,877:z-1540563400-jir11:INFO: Destination: apps1_z-1540563525-jir11
+2018-10-26 10:18:46,877:z-1540563400-jir11:INFO: Please wait...
+2018-10-26 10:18:49,593:z-1540563400-jir11:INFO: Successfully created clone apps1_z-1540563525-jir11
+2018-10-26 10:18:49,593:z-1540563400-jir11:INFO: Setting apps1_z-1540563525-jir11 as /apps1_clone.
+2018-10-26 10:18:49,621:z-1540563400-jir11:INFO: Successfully set apps1_z-1540563525-jir11 as /apps1_clone mount.
+2018-10-26 10:18:49,623:z-1540563400-jir11:INFO: Enabling service related to mount apps1_z-1540563525-jir11, in zone z-1540563400-jir11.
+2018-10-26 10:18:49,644:z-1540563400-jir11:INFO: Service enabled for apps1_z-1540563525-jir11 mount. successful.
+2018-10-26 10:18:49,646:z-1540563400-jir11:INFO: Enabling service related to mount rsync, in zone z-1540563400-jir11.
+2018-10-26 10:18:49,667:z-1540563400-jir11:INFO: Service enabled for rsync mount. successful.
+2018-10-26 10:18:50,685:z-1540563400-jir11:INFO: Disableing service related to mount NA in zone z-1540563400-jir11.
+2018-10-26 10:18:50,705:z-1540563400-jir11:INFO: Service enabled for NA mount successful.
+2018-10-26 10:18:50,706:z-1540563400-jir11:INFO: Sync to /apps1_clone(apps1_z-1540563525-jir11) completed sucssfuly.
+2018-10-26 10:18:50,708:z-1540563400-jir11:INFO: Disableing service related to mount rsync in zone z-1540563400-jir11.
+2018-10-26 10:18:50,720:z-1540563400-jir11:INFO: Service enabled for rsync mount successful.
+2018-10-26 10:18:50,721:z-1540563400-jir11:INFO: Disableing service related to mount apps1_z-1540563525-jir11 in zone z-1540563400-jir11.
+2018-10-26 10:18:50,737:z-1540563400-jir11:INFO: Service enabled for apps1_z-1540563525-jir11 mount successful.
+2018-10-26 10:18:50,738:z-1540563400-jir11:INFO: Disableing service related to mount apps1_z-1540563400-jir11 in zone z-1540563400-jir11.
+2018-10-26 10:18:50,757:z-1540563400-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount successful.
+2018-10-26 10:18:50,757:z-1540563400-jir11:INFO: Renaming snap: from snap_z-1540563400-jir11 to snap_z-1540563400-jir11.
+2018-10-26 10:18:51,504:z-1540563400-jir11:INFO: Renaming clone: from apps1_z-1540563400-jir11 to apps1_z-1540563400-jir11.
+2018-10-26 10:18:53,847:z-1540563400-jir11:INFO: Renaming snap: from snap_z-1540563525-jir11 to snap_z-1540563525-jir11.
+2018-10-26 10:18:54,515:z-1540563400-jir11:INFO: Renaming clone: from apps1_z-1540563525-jir11 to apps1_z-1540563525-jir11.
+2018-10-26 10:18:57,042:z-1540563400-jir11:INFO: Enabling service related to mount apps1_z-1540563400-jir11, in zone z-1540563400-jir11.
+2018-10-26 10:18:57,058:z-1540563400-jir11:INFO: Service enabled for apps1_z-1540563400-jir11 mount. successful.
+2018-10-26 10:18:57,058:z-1540563400-jir11:INFO: Rotation of /apps1(apps1_z-1540563400-jir11) in zone z-1540563400-jir11 completed successfully.
 </pre>
 
 zoneadm output on some cloned zones.
