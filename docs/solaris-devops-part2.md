@@ -881,3 +881,19 @@ IP Address: 10.25.1.78
 Port 32078
 Installation of zone z-1539798251-jir10 successfully completed.
 </pre>
+
+Rotaing a zone.
+<pre>
+./clone_zfs.py -r -i jir111
+Rotating /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111.. please wait...
+Rotation of /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111 completed successfully.
+</pre>
+
+Deleteing a zone.
+<pre>
+./prod-clone_zfs.py -d -i jir111
+Deleting VM/Zone z-1540500938-jir111 and associated snap_z-1540500938-jir111
+Progress is being logged to zone_vm.log
+--------------------------------
+Uninstall/delete completed successfully.
+</pre>
