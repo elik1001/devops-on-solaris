@@ -51,48 +51,59 @@ Completed the template config by pressing f2, fill with something like the below
 Next, we are going to add a few servicess to help in the zone clone process.
 <br>Create the below directory and <i>4</i> files.
 <pre>
-mkdir -p /opt/cloneFiles
+mkdir -p /opt/cloneFiles/bin /opt/cloneFiles/conf /apps1 /apps_clone
 ls
 getIpPort.sh  getIpPort.xml  mount_apps1.xml sc_profile.xml
 </pre>
 Now, lets create the SMF service by creating the below files.
-<br>cat mount_apps1.xml
+<br>cat /opt/cloneFiles/conf/mount_apps1.xml
 
 ```xml
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
 <service_bundle type='manifest' name='export'>
   <service name='application/apps1_mount' type='service' version='0'>
-    <create_default_instance enabled='false'/>
-    <single_instance/>
-    <dependency name='multi-user-server' grouping='require_all' restart_on='none' type='service'>
+   <single_instance/>
+   <dependency name='multi-user-server' grouping='require_all' restart_on='none' type='service'>
       <service_fmri value='svc:/milestone/multi-user-server:default'/>
-    </dependency>
-    <dependency name='dns-client' grouping='require_all' restart_on='none' type='service'>
+   </dependency>
+   <dependency name='dns-client' grouping='require_all' restart_on='none' type='service'>
       <service_fmri value='svc:/network/dns/client:default'/>
-    </dependency>
-    <dependency name='network' grouping='require_all' restart_on='error' type='service'>
+   </dependency>
+   <dependency name='network' grouping='require_all' restart_on='error' type='service'>
       <service_fmri value='svc:/milestone/network'/>
-    </dependency>
-    <exec_method name='start' type='method' exec="mount dc1nas2a-web:/export/apps1_`hostname` /apps1" timeout_seconds='10'>
-    </exec_method>
-    <exec_method name='stop' type='method' exec='umount -f /apps1' timeout_seconds='0'>
-    </exec_method>
-    <property_group name='startd' type='framework'>
+   </dependency>
+   <exec_method name='stop' type='method' exec=':true' timeout_seconds='60'/>
+   <property_group name='startd' type='framework'>
       <propval name='duration' type='astring' value='transient'/>
-    </property_group>
-    <stability value='Stable'/>
-    <template>
+   </property_group>
+   <instance name='apps1src' enabled='false' complete='true'>
+    <exec_method name='start' type='method' exec='mount dc1nas2a-web:/export/apps1_`hostname` /apps1' timeout_seconds='5'/>
+    <exec_method name='stop' type='method' exec='umount -f /apps1' timeout_seconds='5'/>
+   </instance>
+   <instance name='apps1dst' enabled='false' complete='true'>
+    <exec_method name='start' type='method' exec='mount dc1nas2a-web:/export/apps1_`hostname` /apps1_clone' timeout_seconds='5'/>
+    <exec_method name='stop' type='method' exec='umount -f /apps1_clone' timeout_seconds='5'/>
+   </instance>
+   <instance name='apps1sync' enabled='false' complete='true'>
+    <exec_method name='start' type='method' exec='/opt/cloneFiles/bin/sync_apps1.sh start' timeout_seconds='5'/>
+    <exec_method name='stop' type='method' exec='/opt/cloneFiles/bin/sync_apps1.sh stop' timeout_seconds='5'/>
+      <property_group name='config' type='application'>
+        <propval name='sync_stat' type='astring' value='initial'/>
+      </property_group>
+   </instance>
+   <stability value='Stable'/>
+   <template>
       <common_name>
-        <loctext xml:lang='C'>Mount /apps1</loctext>
+        <loctext xml:lang='C'>Mount apps1 / apps1_clone file system</loctext>
       </common_name>
-    </template>
+   </template>
   </service>
 </service_bundle>
 ```
 Next, create the application below. this will populate your IP address and port for latter retrieval.
 <br><i>Note: </i>The file below contains your IP to Port mappings that is latter used in the clone script.
-cat getIpPort.sh
+<br>cat /opt/cloneFiles/bin/getIpPort.sh
 <pre>
 #!/bin/bash
 
@@ -622,7 +633,7 @@ Make the application excutable
 chmod +x getIpPort.sh
 </pre>
 Create the getIpPort SMF xml file.
-<br>cat getIpPort.xml
+<br>cat /opt/cloneFiles/conf/getIpPort.xml
 ```xml
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
@@ -637,9 +648,9 @@ Create the getIpPort SMF xml file.
       <propval name='duration' type='astring' value='transient'/>
    </property_group>
    <instance name='ip' enabled='true' complete='true'>
-    <exec_method name='start' type='method' exec='/opt/cloneFiles/getIpPort.sh' timeout_seconds='5'/>
-    <exec_method name='stop' type='method' exec='/opt/cloneFiles/getIpPort.sh' timeout_seconds='5'/>
-    <exec_method name='refresh' type='method' exec='/opt/cloneFiles/getIpPort.sh' timeout_seconds='5'/>
+    <exec_method name='start' type='method' exec='/opt/cloneFiles/bin/getIpPort.sh' timeout_seconds='5'/>
+    <exec_method name='stop' type='method' exec='/opt/cloneFiles/bin/getIpPort.sh' timeout_seconds='5'/>
+    <exec_method name='refresh' type='method' exec='/opt/cloneFiles/bin/getIpPort.sh' timeout_seconds='5'/>
       <property_group name='config' type='application'>
         <propval name='ip_addr' type='astring' value=''/>
         <propval name='ip_port' type='astring' value=''/>
@@ -663,8 +674,9 @@ svccfg import mount_apps1.xml
 # Verify the new services
 svcs mount_apps1 getIpPort
 root@z-source:~# svcs apps1_mount getIpPort
-STATE          STIME    FMRI
-disabled       12:24:32 svc:/application/apps1_mount:default
+disabled       11:40:15 svc:/application/apps1_mount:apps1sync
+disabled       11:40:15 svc:/application/apps1_mount:apps1dst
+disabled       11:40:15 svc:/application/apps1_mount:apps1src
 online         12:24:35 svc:/network/getIpPort:ip
 </pre>
 Switch the zone to use DHCP before creating / running the sysconfig to create the profile, this will be used in all clones, do so by running the below.
@@ -749,6 +761,30 @@ An exmaple is below <i>/opt/sc_profile.xml</i> file (or use sysconfig to generat
   </service>
 </service_bundle>
 ```
+<br>As of version .05 we also need to create <i>sync_apps1.sh</i> file.
+<br>cat /opt/cloneFiles/bin/sync_apps1.sh
+<pre>
+#!/bin/bash
+
+case $1 in 
+'start')
+    svccfg -s svc:/application/apps1_mount:apps1sync setprop config/sync_stat = astring: "running"
+
+    /usr/bin/rsync -av --delete --progress /apps1/ /apps1_clone >> /var/tmp/rsync_status.log 2>&1
+    rtc=$?
+
+    if [ "${rtc}" == "0" ] ; then
+        svccfg -s svc:/application/apps1_mount:apps1sync setprop config/sync_stat = astring: "completed"
+    else
+        svccfg -s svc:/application/apps1_mount:apps1sync setprop config/sync_stat = astring: \"error: ${rtc}\"
+    fi
+    ;;
+'stop')
+        svccfg -s svc:/application/apps1_mount:apps1sync setprop config/sync_stat = astring: "initial"
+    ;;
+esac
+</pre>
+
 
 Make sure to shutdown the <i>z-source</i> zone, otherwise the clone process wont work.
 <pre>
@@ -844,4 +880,20 @@ New VM/Zone z-1539798251-jir10 is available.
 IP Address: 10.25.1.78
 Port 32078
 Installation of zone z-1539798251-jir10 successfully completed.
+</pre>
+
+Rotaing a zone.
+<pre>
+./clone_zfs.py -r -i jir111
+Rotating /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111.. please wait...
+Rotation of /apps1(apps1_z-1540500938-jir111) in zone z-1540500938-jir111 completed successfully.
+</pre>
+
+Deleteing a zone.
+<pre>
+./prod-clone_zfs.py -d -i jir111
+Deleting VM/Zone z-1540500938-jir111 and associated snap_z-1540500938-jir111
+Progress is being logged to zone_vm.log
+--------------------------------
+Uninstall/delete completed successfully.
 </pre>

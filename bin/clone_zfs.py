@@ -2,8 +2,9 @@
 #title           :clone_zfs.py
 #description     :Creating a DevOps like on Solaris
 #author          :Eli Kleinman
-#date            :20181018
-#version         :0.1
+#release date    :20181018
+#update date     :20181026
+#version         :0.4
 #usage           :python clone_zfs.py
 #notes           :
 #python_version  :2.7.14
@@ -95,7 +96,7 @@ jsonheader = {'Content-Type': 'application/json'}
 hostGz = 'solaris-global-name'
 
 # Source zone
-src_zone = "z-source"
+src_zone = 'z-source'
 
 # Zone template
 sc_profile = 'sc_profile.xml'
@@ -138,6 +139,12 @@ def create_snap(zfsdstsnap):
     r = requests.post("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots" % (url, zfspool, zfsproject, zfssrcfs), auth=zfsauth, verify=False, headers=jsonheader, data=json.dumps(payload))
     return r.status_code
 
+def rename_snap(zfssrcsnap, zfsdstsnap):
+    logger.info("Renaming snap: from %s to %s.", zfssrcsnap, zfssrcsnap)
+    payload = { 'name': zfsdstsnap }
+    r = requests.put("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots/%s" % (url, zfspool, zfsproject, zfssrcfs, zfssrcsnap), auth=zfsauth, verify=False, headers=jsonheader, data=json.dumps(payload))
+    return r.status_code
+
 def verif_clone(zfsdstsnap, zfsdstclone):
     r = requests.get("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s" % (url, zfspool, zfsproject, zfsdstclone), auth=zfsauth, verify=False, headers=jsonheader)
     return r.status_code
@@ -147,6 +154,24 @@ def create_clone(zfsdstsnap, zfsdstclone):
     r = requests.put("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots/%s/clone" % (url, zfspool, zfsproject, zfssrcfs, zfsdstsnap), auth=zfsauth, verify=False, headers=jsonheader, data=json.dumps(payload))
     return r.status_code
 
+def rename_clone(zfssrcclone, zfsdstclone):
+    logger.info("Renaming clone: from %s to %s.", zfssrcclone, zfssrcclone)
+    payload = { 'name': zfsdstclone }
+    r = requests.put("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s" % (url, zfspool, zfsproject, zfssrcclone), auth=zfsauth, verify=False, headers=jsonheader, data=json.dumps(payload))
+    return r.status_code
+
+def getSnapList(zone):
+    logger.info("Vaildating snaps related to zone %s", zone)
+    r = requests.get("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots" % (url, zfspool, zfsproject, zfssrcfs), auth=zfsauth, verify=False, headers=jsonheader)
+    data = r.json()
+    snaps = data['snapshots']
+    snaplist = []
+    for snap in snaps:
+        if re.search(zone, snap['name']):
+            snaplist.append(snap['name'])
+            logger.info("Snap %s related to zone %s, will be deleted.", snap['name'], zone)
+    return snaplist
+
 def delete_snap(zfsdstsnap):
     r = requests.delete("%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots/%s" % (url, zfspool, zfsproject, zfssrcfs, zfsdstsnap), auth=zfsauth, verify=False, headers=jsonheader)
     return r.status_code
@@ -154,7 +179,6 @@ def delete_snap(zfsdstsnap):
 # ====================== End ZFSSA Reset calls =======================
 
 def verify_zone_exist():
-
     zones = rc.list_objects(zonemgr.Zone())
     for i in range(0, len(zones)):
         zone = rc.get_object(zones[i])
@@ -273,14 +297,37 @@ def setHostname(z2):
     node_instance.writeProperty("config/loopback", orig_type, [z2.name])
     logger.info("Updating hostname to %s successful.", z2.name)
 
-def mountApps1(z2):
-    logger.info("Mounting apps1 in zone %s.", z2.name)
-    apps1_instance = zcon.get_object(smf.Instance(),
+def enableSvc(z2, srvc, mount):
+    logger.info("Enabling service related to mount %s, in zone %s.", mount, z2.name)
+    svc_instance = zcon.get_object(smf.Instance(),
                               radc.ADRGlobPattern({"service" : "application/apps1_mount",
-                                                        "instance" : "default"}))
-    apps1_instance.enable ("")
-    logger.info("Mounting apps1 successful.")
+                                                        "instance" : srvc}))
+    svc_instance.enable ("")
+    logger.info("Service enabled for %s mount. successful.", mount)
 
+def disableSvc(z2, srvc, umountfs):
+    logger.info("Disableing service related to mount %s in zone %s.", umountfs, z2.name)
+    svc_instance = zcon.get_object(smf.Instance(),
+                              radc.ADRGlobPattern({"service" : "application/apps1_mount",
+                                                        "instance" : srvc}))
+    svc_instance.disable ("")
+    logger.info("Service enabled for %s mount successful.", umountfs)
+
+def chkSvc(z2, srvc):
+    svc_instance = zcon.get_object(smf.Instance(),
+                              radc.ADRGlobPattern({"service" : "application/apps1_mount",
+                                                        "instance" : srvc}))
+    return (str(svc_instance.readProperty("config/sync_stat").values[0]))
+
+def setApps1Mount(z2, srvc, mount):
+    logger.info("Setting %s as /apps1_clone.", mount)
+    mount_instance = zcon.get_object(smf.Instance(),
+                              radc.ADRGlobPattern({"service" : "application/apps1_mount",
+                                                        "instance" : srvc}))
+    mount_instance.writeProperty("start/exec", smf.PropertyType.ASTRING, 
+                                 ['mount dc1nas2a-web:/export/' + mount + ' /apps1_clone'])
+
+    logger.info("Successfully set %s as /apps1_clone mount.", mount)
 
 def getIpPort(z2):
 
@@ -299,7 +346,7 @@ def displayImgStat(dst_zone):
     logger.info("Pulling status...")
     print "Pulling status...\n------------------------------"
     matchZone = verify_zone_exist()
-    snap = verif_snap(zfsdstsnap)
+    snap = verif_snap("snap_" + matchZone)
 
     if (matchZone is None and snap != 200):
        closeCon()
@@ -323,8 +370,111 @@ def displayImgStat(dst_zone):
            print "Mount src: apps1_%s" % (matchZone)
            print "Mount dst: /apps1"
 
-def rotateImg(ds):
-    print "Not implemented yet."
+def rotateImg(dst_zone):
+
+    global matchZone
+    matchZone = verify_zone_exist()
+    if matchZone is None:
+        closeCon()
+        print "ERROR: Cannot find VM/Zone for %s." % (jiraid)
+        sys.exit(1)
+    logging.addLevelName(logging.DEBUG, matchZone)
+
+    logger.info("Validating VM/Zone status.. please wait...")
+    matchZone = verify_zone_exist()
+    zfssrcsnap = "snap_" + matchZone
+    zfssrcclone = "apps1_" + matchZone
+    snap = verif_snap(zfssrcsnap)
+
+    if (matchZone is None and snap != 200):
+       closeCon()
+       print "ERROR: No VM/Zone %s or associated clone %s found." % (dst_zone, zfsdstsnap)
+       sys.exit(1)
+    else:
+       logger.info("Rotating /apps1(%s) in zone %s...", zfssrcclone, matchZone)
+       print "Rotating /apps1(%s) in zone %s.. please wait..." % (zfssrcclone, matchZone)
+       z2_list = rc.list_objects(zonemgr.Zone(),
+                              radc.ADRGlobPattern({"name" : matchZone}))
+       z2 = rc.get_object(z2_list[0])
+
+       if z2.state != 'running':
+           closeCon()
+           logger.error("VM/Zone %s is not available, curent zone stat is %s.", matchZone, z2.state)
+           print "VM/Zone %s is not available, curent zone stat is %s." % (matchZone, z2.state)
+           sys.exit(0)
+       else:
+           connectToZone(z2)
+
+    # Create ZFS snap.
+    logger.info("Cerating snapshot: %s", zfsdstsnap)
+    snap = create_snap(zfsdstsnap)
+    if snap == 201:
+        logger.info("Snapshot created successfully.")
+    else:
+        closeCon()
+        logger.error("Snapshot %s creation failed, with error code: %s. exiting.", zfsdstsnap, snap)
+        print("Snapshot %s creation failed, with error code: %s \nExiting.") % (zfsdstsnap, snap)
+        sys.exit(snap)
+
+    # Cloning /apps1 file-systems.
+    logger.info("CLONING file-systems")
+    logger.info("Source: /apps1")
+    logger.info("Destination: %s",  zfsdstclone)
+    logger.info("Please wait...")
+    clone = create_clone(zfsdstsnap, zfsdstclone)
+    if clone == 201:
+        logger.info("Successfully created clone %s",  zfsdstclone)
+    else:
+        closeCon()
+        logger.error("Clone %s creation failed. Return error code is: %s. exiting.",  zfsdstclone, clone)
+        print("Clone %s creation failed. Return error code is: %s \nExiting.") % (zfsdstclone, clone)
+        sys.exit(1)
+
+    # Mount new apps1 clone as /apps1_clone
+    setApps1Mount(z2, "apps1dst", zfsdstclone)
+    enableSvc(z2, "apps1dst", zfsdstclone)
+
+    # Run rsync
+    enableSvc(z2, "apps1sync", "rsync")
+    time.sleep(1)
+    
+    while True:
+      sync_stat = chkSvc(z2, "apps1sync")
+      if sync_stat == "running":
+        logger.info("Sync to /apps1_clone(%s) is still in progress.", zfsdstclone)
+        time.sleep(10)
+      elif sync_stat == "initial":
+        closeCon()
+        logger.error("Sync to %s never started, the return code is: %s", zfsdstclone, sync_stat)
+        sys.exit(1)
+      elif sync_stat == "completed":
+        disableSvc(z2, "apps1sync", "NA")
+        logger.info("Sync to /apps1_clone(%s) completed sucssfuly.", zfsdstclone)
+        break
+      else:
+        closeCon()
+        logger.error("An error occurred while trying to sync %s, with error code: (%s)", zfsdstclone, sync_stat)
+        sys.exit(1)
+    
+    disableSvc(z2, "apps1sync", "rsync")
+
+    # Umount /apps1 and /apps1_clone
+    disableSvc(z2, "apps1dst", zfsdstclone)
+    disableSvc(z2, "apps1src", zfssrcclone)
+
+    # Rename snap, clone orignal apps-time => apps1-newtime
+    rename_snap(zfssrcsnap, zfssrcsnap +  "-" + dt.strftime("%s"))
+    rename_clone(zfssrcclone, zfssrcclone + "-" + dt.strftime("%s"))
+
+    # Rename snap, clone orignal apps-time => apps1-newtime
+    rename_snap(zfsdstsnap, zfssrcsnap)
+    rename_clone(zfsdstclone, zfssrcclone)
+
+    # Mount new clone as /apps1
+    enableSvc(z2, "apps1src", zfssrcclone)
+    closeCon()
+    logger.info("Rotation of /apps1(%s) in zone %s completed successfully.", zfssrcclone, matchZone)
+    print "Rotation of /apps1(%s) in zone %s completed successfully." % (zfssrcclone, matchZone)
 
 def closeCon():
     try: rc.close()
@@ -419,7 +569,7 @@ def clone_filesystem():
     # Set zone hostname.
     setHostname(dst_z)
     # Set zone hostname.
-    mountApps1(dst_z)
+    enableSvc(dst_z, "apps1src", "/apps1")
     # Get zone IP adn Port.
     getIpPort(dst_z)
     # Close connection.
@@ -430,14 +580,19 @@ def clone_filesystem():
 
 def delete_filesystem():
 
-    logger.info("Deleting clone/snapshot: apps1_%s", matchZone)
-    delete_clone =  delete_snap('snap_' + matchZone)
-    if delete_clone == 204:
-        logger.info("Clone/snapshot apps1_%s and associated snap_%s deleted successfully.", matchZone, matchZone)
-    else:
-        closeCon()
-        print("ERROR: Clone snap_%s deletion failed. Return error code is: %s \nExiting.") % (matchZone, delete_clone)
-        sys.exit(1)
+    logger.info("Deleting clone/snapshots related to zone: %s", matchZone)
+    for snap in getSnapList('snap_' + matchZone):
+        logger.info("Deleting clone/snapshot %s", snap)
+        delete_clone =  delete_snap(snap)
+        if delete_clone == 204:
+            closeCon()
+            logger.info("Clone/snapshot apps1_%s and associated snap_%s deleted successfully.", snap, snap)
+        else:
+            closeCon()
+            print("ERROR: Clone snap_%s deletion failed. Return error code is: %s \nExiting.") % (snap, delete_clone)
+            sys.exit(1)
+    logger.info("Uninstall/delete of VM/Zone %s completed successfully.", matchZone)
+    print "Uninstall/delete completed successfully."
 
 def delete_vm():
 
@@ -479,9 +634,7 @@ def delete_vm():
     delete_zone = rc.get_object(zonemgr.ZoneManager())
     delete_zone.delete(z2.name)
     closeCon()
-    logger.info("Deleteing %s completed successfully.", matchZone)
-    logger.info("Uninstall/delete of VM/Zone %s completed successfully.", matchZone)
-    print "Uninstall/delete completed successfully."
+    logger.info("Deleteing configuration of %s completed successfully.", matchZone)
 
 if __name__ == "__main__":
     main()
