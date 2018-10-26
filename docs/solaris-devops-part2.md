@@ -51,12 +51,12 @@ Completed the template config by pressing f2, fill with something like the below
 Next, we are going to add a few servicess to help in the zone clone process.
 <br>Create the below directory and <i>4</i> files.
 <pre>
-mkdir -p /opt/cloneFiles /apps1 /apps_clone
+mkdir -p /opt/cloneFiles/bin /opt/cloneFiles/conf /apps1 /apps_clone
 ls
 getIpPort.sh  getIpPort.xml  mount_apps1.xml sc_profile.xml
 </pre>
 Now, lets create the SMF service by creating the below files.
-<br>cat mount_apps1.xml
+<br>cat /opt/cloneFiles/conf/mount_apps1.xml
 
 ```xml
 <?xml version='1.0'?>
@@ -103,7 +103,7 @@ Now, lets create the SMF service by creating the below files.
 ```
 Next, create the application below. this will populate your IP address and port for latter retrieval.
 <br><i>Note: </i>The file below contains your IP to Port mappings that is latter used in the clone script.
-cat getIpPort.sh
+<br>cat /opt/cloneFiles/bin/getIpPort.sh
 <pre>
 #!/bin/bash
 
@@ -633,7 +633,7 @@ Make the application excutable
 chmod +x getIpPort.sh
 </pre>
 Create the getIpPort SMF xml file.
-<br>cat getIpPort.xml
+<br>cat /opt/cloneFiles/conf/getIpPort.xml
 ```xml
 <?xml version='1.0'?>
 <!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
@@ -762,7 +762,7 @@ An exmaple is below <i>/opt/sc_profile.xml</i> file (or use sysconfig to generat
 </service_bundle>
 ```
 <br>As of version .05 we also need to create <i>sync_apps1.sh</i> file.
-<br>cat sync_apps1.sh
+<br>cat /opt/cloneFiles/bin/sync_apps1.sh
 <pre>
 #!/bin/bash
 
