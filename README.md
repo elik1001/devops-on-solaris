@@ -24,15 +24,15 @@ optional arguments:
 <b>Version 0.5</b>
 
 <b>Added: </b>This version adds the VM/Zone image rotate i.e. <b>-r (--rotateImg)</b> option.
-With this version you can now update/rollback an image using the newest ZFS copy.
+<br>With this version you can now update/rollback an image using the newest ZFS copy.
 
 <i>For example:</i>
 <br>z-12345-jir1 was created on 10/1
 <br>Then
 <br>z-12345-jir2 was created on 10/2
-<br>the
+<br>then
 <br>z-12345-jir3 was created on 10/3
-If you <i>remove z-12345-jir2</i> all changes/updates consume disk space eve it was deleted, it will only be freed if <i>z-12345-jir1</i> will be removed which is still in use.
+<br>If you <i>remove z-12345-jir2</i> all changes/updates consume disk space eve it was deleted, it will only be freed if <i>z-12345-jir1</i> will be removed which is still in use.
 
 To get around this issue.
 
@@ -45,42 +45,8 @@ Finlay, it will switch / rename mount points and snaps.
 if all checks out to be good you manually deleted the image, once this functionally is fully tested I will add to auto delete the old original image/snap.
 
 <b>Updated: </b>With this updated the VM/Zone deleted option was also updated.
-Since you can now have multiple snaps/clones for the same VM/zone.
-If you use the <b>-d</b> option the system will remove the VM/zone as well as all associated snaps/clones.
-
-<b>Updated: </b>Created new directory <i>cloneFiles/conf</i> and <i>cloneFiles/bin</i>, all executable files ware moved to bin and all xml ware moved to conf, the xml files ware updated with the new file path.
-
-<b>Updated: </b>Added a service for rsync <i>application/apps1_mount:apps1sync</i>, it will look like the below.
-<pre>
-disabled       11:40:15 svc:/application/apps1_mount:apps1sync
-disabled       11:40:15 svc:/application/apps1_mount:apps1dst
-disabled       11:40:15 svc:/application/apps1_mount:apps1src
-</pre>
-</b>
-
-<b>Added: </b>This version adds the VM/Zone image rotate i.e. <b>-r (--rotateImg)</b> option. With this version you can now update/rollback an image using the newest ZFS copy.
-
-<i>For example:</i>
-<br>z-12345-jir1 was created on 10/1
-<br>Then
-<br>z-12345-jir2 was created on 10/2
-<br>then
-<br>z-12345-jir3 was created on 10/3
-
-If you <i>remove z-12345-jir2</i> all changes/updates consume disk space eve it was deleted, it will only be freed if <i>z-12345-jir1</i> will be removed which is still in use.
-
-To get around this issue.
-<br>You can use the option <b>-r</b> which will clone/create a new zfs file system in  <i>z-12345-jir1</i> with the prefix of <i>_clone</i>.
-
-Next, it will copy by using <i>rsync --delete</i> to back-date the clone with the original content.
-<br>Finlay, it will switch / rename mount points and snaps.
-<br><i>Note: </i>Currently the original image / snap will only be renamed with a time stamp and original name. if all checks out to be good you manually deleted the image, once this functionally is fully tested I will add to auto delete the old original image/snap.
-<br>
-
-<b>Updated: </b>With this updated the VM/Zone deleted option was also updated.
-Since you can now have multiple snaps/clones for the same VM/zone.
-If you use the <b>-d</b> option the system will remove the VM/zone as well as all associated snaps/clones.
-<br>
+<br>Since you can now have multiple snaps/clones for the same VM/zone.
+<br>If you use the <b>-d</b> option the system will remove the VM/zone as well as all associated snaps/clones.
 
 <b>Updated: </b>Created new directory <i>cloneFiles/conf</i> and <i>cloneFiles/bin</i>, all executable files ware moved to bin and all xml ware moved to conf, the xml files ware updated with the new file path.
 
