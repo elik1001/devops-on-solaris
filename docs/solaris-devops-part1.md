@@ -11,8 +11,12 @@ Will be using the Solaris <i>firewalld</i> application to do all that.</li>
     <li>The script will then be utilizing all of this as part of the cloning process described below.</li>
 </ol>
 
-<p>To help and better understand I created a network digram below.
+<p>To help and better understand I created a network diagram below.
+<br><b>Full network diagram</b>
+<br><img src="../images/gz-network-diag-v2.png" alt="Solaris Zone Deployment" align="middle" height="50%"></p>
+<br><b>Zone network diagram</b>
 <br><img src="../images/gz-network-diag.png" alt="Network Digram" align="middle" height="50%"></p>
+
 
 
 <h4>Creating a Solaris private switch(etherstub)</h4>
@@ -608,6 +612,25 @@ subnet 10.25.0.0 netmask 255.255.254.0 {
   default-lease-time 600;
   max-lease-time 7200;
 }
+</pre>
+Save the below to a script and run, to generate the DHCP Host to Port mappings.
+./generate_port_mapping.sh >> /etc/inet/dhcpd4.conf
+<pre>
+#!/bin/bash
+
+for i in {011..254};do
+echo "host $(expr $i + 31000) {"
+echo "  host-identifier option dhcp-client-identifier \"$(expr $i + 31000)\";"
+echo "  fixed-address 10.25.0.$i;"
+echo "}"
+done
+
+for i in {011..254};do
+echo "host $(expr $i + 32000) {"
+echo "  host-identifier option dhcp-client-identifier \"$(expr $i + 32000)\";"
+echo "  fixed-address 10.25.1.$i;"
+echo "}"
+done
 </pre>
 Next, enable the DHCP service. you do so by running the below.
 <pre>
