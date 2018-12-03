@@ -583,7 +583,7 @@ cat /etc/inet/dhcpd4.conf
 
 # option definitions common to all supported networks...
 option domain-name "example.com";
-option domain-name-servers 8.8.8.8 8.8.4.4;
+option domain-name-servers 8.8.8.8, 8.8.4.4;
 
 default-lease-time 600;
 max-lease-time 7200;
@@ -605,7 +605,7 @@ log-facility local7;
 # A slightly different configuration for an internal subnet.
 subnet 10.25.0.0 netmask 255.255.254.0 {
   range 10.25.0.11 10.25.1.254;
-  option domain-name-servers 8.8.8.8 8.8.4.4;
+  option domain-name-servers 8.8.8.8, 8.8.4.4;
   option domain-name "example.com";
   option routers 10.25.0.1;
   option broadcast-address 10.25.1.255;
