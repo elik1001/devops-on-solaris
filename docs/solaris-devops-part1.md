@@ -34,7 +34,7 @@ ipadm create-addr -a 10.25.0.1/23 stub1
 
 Next, Turn on ip routing/forwarding on the new switch/etherstub.
 <pre>
-ipadm set-ifprop -p forwarding=on -m ipv4 stub0
+ipadm set-ifprop -p forwarding=on -m ipv4 stub1
 </pre>
 Now, lets create the firewall forwarding and NAT rules, you do so by creating the below.
 cat /etc/firewall/pf.conf
