@@ -512,11 +512,11 @@ ipPortTable="
 10.25.1.255:32255
 "
 
-myIp=`ipadm show-addr -p -o addr net0/v4| awk -F\/ '{print $1}'`
+myIp=`ipadm show-addr -p -o addr net0/v4| cut -d\/ -f1`
 ipPort=`echo "$ipPortTable"|grep ^$myIp:`
 
-addr=`echo $ipPort |awk -F\: '{print $1}'`
-port=`echo $ipPort |awk -F\: '{print $2}'`
+addr=`echo $ipPort |cut -d\: -f1`
+port=`echo $ipPort |cut -d\: -f2`
 
 svccfg -s svc:/network/getIpPort:ip setprop config/ip_addr = astring: $addr
 svccfg -s svc:/network/getIpPort:ip setprop config/ip_port = astring: $port

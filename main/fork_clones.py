@@ -22,8 +22,8 @@ def worker(num):
     proc = num+301
     jirid = 'jir'+str(proc)
     print("%s Started!" % (jirid))
-    p = subprocess.Popen(['/var/tmp/elik/informix_project/clone_zfs.py', '-i', jirid], stdout=subprocess.PIPE)
-    #p = subprocess.Popen(['/var/tmp/elik/informix_project/clone_zfs.py', '-d','-i', jirid], stdout=subprocess.PIPE)
+    p = subprocess.Popen(['/var/tmp/devops_manager.py', '-i', jirid], stdout=subprocess.PIPE)
+    #p = subprocess.Popen(['/var/tmp/devops_manager.py', '-d','-i', jirid], stdout=subprocess.PIPE)
     out, err = p.communicate()
     print out
     print("%s Completed!" % (jirid))

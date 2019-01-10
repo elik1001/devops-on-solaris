@@ -1,0 +1,77 @@
+<?xml version='1.0'?>
+<!DOCTYPE service_bundle SYSTEM '/usr/share/lib/xml/dtd/service_bundle.dtd.1'>
+<service_bundle type='manifest' name='export'>
+  <service name='application/db_startup' type='service' version='0'>
+    <single_instance/>
+    <dependency name='apps1_mount' grouping='require_all' restart_on='error' type='service'>
+      <service_fmri value='svc:/application/apps1_mount:apps1src'/>
+    </dependency>
+    <dependency name='dns-client' grouping='require_all' restart_on='none' type='service'>
+      <service_fmri value='svc:/network/dns/client:default'/>
+    </dependency>
+    <dependency name='ifxsrv_mount' grouping='require_all' restart_on='error' type='service'>
+      <service_fmri value='svc:/application/db_mount:ifxsrc'/>
+    </dependency>
+    <dependency name='multi-user-server' grouping='require_all' restart_on='none' type='service'>
+      <service_fmri value='svc:/milestone/multi-user-server:default'/>
+    </dependency>
+    <dependency name='network' grouping='require_all' restart_on='error' type='service'>
+      <service_fmri value='svc:/milestone/network'/>
+    </dependency>
+    <exec_method name='stop' type='method' exec=':true' timeout_seconds='60'>
+      <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
+      <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
+      <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
+    </exec_method>
+    <property_group name='general' type='framework'>
+      <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
+    </property_group>
+    <property_group name='startd' type='framework'>
+      <propval name='duration' type='astring' value='transient'/>
+    </property_group>
+    <instance name='ifxsrvr' complete='true' enabled='false'>
+      <exec_method name='start' type='method' exec='/usr/ifxsrv/bin/oninit -v' timeout_seconds='90'>
+        <method_context>
+          <method_credential user='db' group='db' trusted_path='false'/>
+          <method_environment>
+            <envvar name='INFORMIXSERVER' value='bnhdops'/>
+            <envvar name='ONCONFIG' value='onconfig.bnhdops'/>
+            <envvar name='DBPATH' value='//bnhdops'/>
+            <envvar name='INFORMIXDIR' value='/usr/ifxsrv'/>
+            <envvar name='LD_LIBRARY_PATH' value='/usr/ifxsrv/lib:/usr/ifxsrv/lib/esql:/usr/ifxsrv/lib/tools:/usr/ifxsrv/lib:/usr/ifxsrv/lib/esql:/usr/ifxsrv/lib/tools'/>
+            <envvar name='PATH' value='/usr/ifxsrv/bin:/batch:/usr/ifxsrv/DBtoolkit:/usr/ifxsrv/batch:/apps1/bnh/DBtoolkit:/usr/sbin:/usr/local/bin:/usr/ifxsrv/bnh_ifmx_dba:/usr/openwin/bin:/bin:/usr/bin:/usr/ucb'/>
+          </method_environment>
+        </method_context>
+        <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
+      </exec_method>
+      <exec_method name='stop' type='method' exec='/opt/cloneFiles/bin/db_starup.sh stop' timeout_seconds='20'>
+        <method_context>
+          <method_environment>
+            <envvar name='INFORMIXSERVER' value='bnhdops'/>
+            <envvar name='ONCONFIG' value='onconfig.bnhdops'/>
+            <envvar name='DBPATH' value='//bnhdops'/>
+            <envvar name='INFORMIXDIR' value='/usr/ifxsrv'/>
+            <envvar name='LD_LIBRARY_PATH' value='/usr/ifxsrv/lib:/usr/ifxsrv/lib/esql:/usr/ifxsrv/lib/tools:/usr/ifxsrv/lib:/usr/ifxsrv/lib/esql:/usr/ifxsrv/lib/tools'/>
+            <envvar name='PATH' value='/usr/ifxsrv/bin:/batch:/usr/ifxsrv/DBtoolkit:/usr/ifxsrv/batch:/apps1/bnh/DBtoolkit:/usr/sbin:/usr/local/bin:/usr/ifxsrv/bnh_ifmx_dba:/usr/openwin/bin:/bin:/usr/bin:/usr/ucb'/>
+          </method_environment>
+        </method_context>
+        <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
+      </exec_method>
+      <property_group name='general' type='framework'>
+        <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
+        <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
+      </property_group>
+    </instance>
+    <stability value='Stable'/>
+    <template>
+      <common_name>
+        <loctext xml:lang='C'>Starts Informix Database Server</loctext>
+      </common_name>
+    </template>
+  </service>
+</service_bundle>
