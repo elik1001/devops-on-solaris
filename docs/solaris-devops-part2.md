@@ -679,7 +679,7 @@ disabled       11:40:15 svc:/application/apps1_mount:apps1dst
 disabled       11:40:15 svc:/application/apps1_mount:apps1src
 online         12:24:35 svc:/network/getIpPort:ip
 </pre>
-<br><b>Note: </b>As of version .06 all sc_profile.xml related config has been removed(it is generated automaticlay), if you need to make changes, you can modify the xml in the clone_zfs.py directly.
+<br><b>Note: </b>As of version .06 all sc_profile.xml related config has been removed(it is generated automaticlay), if you need to make changes, you can modify the xml in the devops_manager.py directly.
 <br>As of version .05 we also need to create <i>sync_apps1.sh</i> file.
 <br>cat /opt/cloneFiles/bin/sync_apps1.sh
 <pre>
@@ -740,8 +740,8 @@ system/management/rad/module/rad-zonemgr          0.5.11-0.175.3.32.0.1.0    i--
 </pre>
 Finally, we can now use the script to clone zones, the usage options are below.
 <pre>
-./clone_zfs.py -h             
-usage: clone_zfs.py [-h] [-e [{test,dev,stage}]] [-s | -d | -r]
+./devops_manager.py -h
+usage: devops_manager.py [-h] [-e [{test,dev,stage}]] [-s | -d | -r {app,db}]
                          (-i  | -l [LISTZONES])
 
 Create VM(zone) with associated /apps1 clone
@@ -752,78 +752,191 @@ optional arguments:
                         select environment dev, test, stage(default is dev)
   -s, --imgStat         display VM(zone) IP / Port status
   -d, --delete          delete VM(zone) with associated snap
-  -r, --rotateImg       rotate VM(zone).
+  -r {app,db}, --rotateImg {app,db}
+                        rotate / sync update /apps1 or refresh /ifxsrv in a
+                        VM/zone.
   -i , --jiraid         associated Jira ID
   -l [LISTZONES], --listZones [LISTZONES]
+                        List all Active Zone resources
 </pre>
 <i>Note: </i>Before using the script, make sure to updated the settings like user/password ZFSSA IP address, etc. that reflects your environment.
 
-Some of the script settings.
+As of Version 07, all script settings are stored in devops_config.ini.
 <pre>
-# ====================== ZFS related ======================
-
-# Add proxy
-# os.environ['http_proxy'] = "http://10.10.10.10:1234/"
-# os.environ['https_proxy'] = "http://10.10.10.10:1234/"
-
+[ZFSSA]
 # ZFSSA API URL
-url = "https://10.250.109.110:215"
+url = https://10.150.0.240:215
 
-# ZFSSA API login 
-zfsuser = ('user')
-zfspass = ('password')
-zfsauth = (zfsuser, zfspass)
+# ZFSSA API login
+zfsuser = devops_api
+zfspass = devops1#
 
 # ZFS pool
-zfspool = "HP-pool1"
+zfspool = HP-pool1
 
 # ZFS project
-zfsproject = "zfs_project"
+zfsproject = 4gl_do
 
+[ZFS_SRC_FS]
 # ZFS source filesystem
-zfssrcfs = "apps1-file-system"
+zfssrcfs.1 = apps1-prod
+zfssrcfs.2 = ifxdb-do
 
-zfsdstsnap = 'snap_' + dst_zone
-zfsdstclone = 'apps1_' + dst_zone
+[ZFS_DST_SNAP]
+# ZFS snap filesystem
+zfsdstsnap = snap_
 
-# Global zone
-hostGz = 'solaris-global-name'
+[ZFS_DST_FS]
+# ZFS clone filesystem(s)
+zfsdstfs.1 = apps1_
+zfsdstfs.2 = ifxdb-do_
 
-# Source zone
-src_zone = "z-source"
+[PROXY]
+# Set system proxy (default is no)
+http_proxy = None
+https_proxy = None
+# http_proxy = http://10.10.10.10:1234/
+# https_proxy = http://10.10.10.10:1234/
 
-# ====================== Global and Zone related =================
+[HOST_LIST]
+# Define / list of Global Zone pair's - HA and DR set.
+# The system will verify and select the one with lowest CPU load.
+ha.1 = dc1-devops1
+dr.1 = dc2-devops1
+ha.2 = dc1-devops2
+dr.2 = dc2-devops2
 
-# Global zone - will select one with the lowest CPU load.
-# Define dr state, can be ha, dr or both.
-dclist = ['ha', 'dr']
-drstat = "both"
-
-# Define a list of Global Zone set of HA and DR.
-hostdclist = [
-    {'id': 1, 'ha': 'dc1-host1-gz', 'dr': 'dc2-host1-gz'},
-    {'id': 2, 'ha': 'dc1-host2-gz', 'dr': 'dc2-host2-gz'},
-    {'id': 3, 'ha': 'dc1-host3-gz', 'dr': 'dc2-host3-gz'},
-    {'id': 4, 'ha': 'dc1-host4-gz', 'dr': 'dc2-host4-gz'},
-    ]
-
-# Min Load and Memory required for Global Zones
+[CONFIG]
+# Global Zone min CPU, Memory required.
+# If the system has a higher load average, or less then the required memory, 
+# will just skip that system.
 loadvalue = 30
 minmem = 20000
 
-# Lowest / first port used for connections - firewall mapping
+# Lowest / first port used for connections - firewall mapping.
+# Default ports configured as documented are.
+# from 31001-31255 and from 32001-32255.
+# Note: I left the first 10 i.e.(31001-31011) ports not used for other uses.
 low_port = 31011
 
-# Source zone
-src_zone = "z-source"
+# Source zone used for all future cloning.
+# The system will automatically created this zone if not exists.
+# Note: Once created you can always modify this zone, and all future clones will contain this changes
+src_zone = z-source
 
-# Dest (Jira) zone name
-jiraid = args.jiraid
+# Define HA or DR state, can be ha, dr or both.
+drstat = both
 
+# SC profile to use
+# Two examples are included, with or without LDAP
+sc_profile = sc_profile_templ.xml
+# sc_profile = sc_profile_ldap_templ.xml
+
+[LDAP]
+# Define if LDAP is in used and shuld be configured (options are yes and no)
+# Note: the below config sets to use the ldap sys_config profile.
+# Options are [yes | no]
+ldap = yes
+
+[LDAP_CERTS]
+# Below you define a list of file names containing your ldap certificates.
+# This section is only used if ldap = yes
+# Note: all certificate files are searched for in conf/ directory
+ldapcert1.1 = cert1
+ldapcert1.2 = cert2
+ldapcert1.3 = cert3
+ldapcert1.4 = cert4
+
+[NFS]
+# Defines if NFS mounts shuld be defined
+# Options are [yes | no]
+nfs = yes
+
+[NFS_MOUNTS]
+# Below you define a list of NFS file systems and options
+# All the options below will be added to the source /etc/vfstab file
+# This section is only used if ldap = yes
+vfstab.1 = nas-users.bnh.com:/export/users-dev             -       /users          nfs    -   yes  bg,intr,vers=3
+vfstab.2 = nas-shared.bnh.com:/export/shared-dev    -       /data3  nfs     -       yes     bg,intr,vers=3
+
+[STARTUP]
+# Options are [yes | no]
+start = yes
+
+[STARTUP_SCRIPTS]
+# The start-up files below will automatically be copied at installed time.
+# Will only work if STARTUP > start = yes
+# Note: all start-up files shuld be placed in bin/
+start.1.1 = db_starup.sh
+startsrcpath.1.2 = bin/db_starup.sh
+startdstpath.1.3 = /opt/cloneFiles/bin/db_starup.sh
+start.2.1 = sync_apps1.sh
+startsrcpath.2.2 = bin/sync_apps1.sh
+startdstpath.2.3 = /opt/cloneFiles/bin/sync_apps1.sh
+start.3.1 = getIpPort.sh
+startsrcpath.3.2 = bin/getIpPort.sh
+startdstpath.3.3 = /opt/cloneFiles/bin/getIpPort.sh
+
+[SMF_PROFILE]
+# Options are [yes | no]
+start = yes
+
+[SMF_PROFILE_LOC]
+# The SMF files below will automatically be copied at installed time.
+# Will only work if SMF_PROFILE > start = yes
+# Note: all SMF xml files shuld be placed in conf/
+smf.1.1 = apps1_mount.xml
+smfsrcpath.1.2 = conf/apps1_mount.xml
+smfpath.1.3 = /zones/z-source/root/lib/svc/manifest/site/apps1_mount.xml
+smf.2.1 = getIpPort.xml
+smfsrcpath.2.2 = conf/getIpPort.xml
+smfpath.2.3 = /zones/z-source/root/lib/svc/manifest/site/getIpPort.xml
+smf.3.1 = db_startup.xml
+smfsrcpath.3.2 = conf/db_startup.xml
+smfpath.3.3 = /zones/z-source/root/lib/svc/manifest/site/db_startup.xml
+smf.4.1 = db_mount.xml
+smfsrcpath.4.2 = conf/db_mount.xml
+smfpath.4.3 = /zones/z-source/root/lib/svc/manifest/site/db_mount.xml
+smf.5.1 = db_port.xml
+smfsrcpath.5.2 = conf/db_port.xml
+smfpath.5.3 = /zones/z-source/root/lib/svc/manifest/site/db_port.xml
+
+[DIR]
+# Options are [yes | no]
+dir = yes
+
+[DIR_LIST]
+# Define directory's to create, an example for a required directory is, an NFS mount.
+dir.1 = opt/cloneFiles/bin
+dir.2 = opt/cloneFiles/conf
+dir.3 = apps1
+dir.4 = apps1_clone
+dir.5 = /data3
+dir.6 = /users
+dir.7 = /ifxsrv
+dir.8 = /ifxsrv_clone
+
+[LINK]
+# Options are [yes | no]
+link = yes
+
+[LINK_LIST]
+# Define directory to link from > to
+linksrc.1.1 = DB
+linksrc.1.2 = /apps1/db
+linkdst.1.3 = /usr/db
+
+[OTHER]
+# Below is defined LD_LIBRARY_PATH, and project data, to be updated at install time
+# Options are: None, or a PATH
+# etc_profile = None
+# etc_user_attr = None
+etc_profile = export LD_LIBRARY_PATH=/usr/lib/sparcv9:$LD_LIBRARY_PATH
+etc_user_attr = db::::project=group.db;lock_after_retries=no;auths=solaris.smf.manage.db
 </pre>
 Cloning a zone.
 <pre>
-./clone_zfs.py -i jir162
+./devops_manager.py -i jir162
 Evaluating system resources and availability. please wait...
 Cloning VM/Zone z-1542812804-jir162 and associated file systems
 Progress is being logged to zone_vm.log
@@ -843,7 +956,7 @@ Installation of zone z-1542812804-jir162 in DR successfully completed.
 
 Rotaing a zone.
 <pre>
-./clone_zfs.py -r -i jir162
+./devops_manager.py -r -i jir162
 Finding server containing zone for jir162 in HA.
 Found jir162 on dc1-host4-gz in HA.
 (HA)Rotating /apps1(apps1_z-1542812804-jir162) in zone z-1542812804-jir162.. please wait...
@@ -856,7 +969,7 @@ Found jir162 on dc2-host4-gz in DR.
 
 Deleteing a zone.
 <pre>
-./clone_zfs.py -d -i jir162
+./devops_manager.py -d -i jir162
 Finding server containing zone for jir162 in HA.
 Finding server containing zone for jir162 in DR.
 Found jir162 on dc2-host4-gz in dr.
@@ -872,7 +985,7 @@ Uninstall/delete completed successfully.
 
 Checking zone resources
 <pre>
-./clone_zfs.py -l          
+./devops_manager.py -l          
 Checking system resources. please wait...
 
 -----------========= HA ==========----------
