@@ -14,7 +14,11 @@ case $1 in
         exit 0
     fi
     ;;
-'stop') /usr/bin/su - informix -c "/usr/ifxsrv/bin/db_start -abc"
+'stop')
+        /usr/bin/su - informix -c "/usr/ifxsrv/bin/onmode -ky" >>/var/tmp/informix.out 2>&1
+        sleep 3
+        /usr/bin/su - informix -c "/usr/ifxsrv/bin/onclean -ky" >>/var/tmp/onclean.out 2>&1
+        sleep 10
         
     ;;
 'port') 

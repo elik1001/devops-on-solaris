@@ -27,7 +27,7 @@ optional arguments:
                         List all Active Zone resources
 </pre>
 
-<b>Version 0.7</b>
+<b>Version 0.7.1</b>
 
 This version greatly improves / simplifies all configuration modifications by using the Python <i>ConfigParser</i> module.
 

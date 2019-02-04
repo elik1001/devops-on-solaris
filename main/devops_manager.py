@@ -3,8 +3,8 @@
 #description     :Creating a DevOps like on Solaris
 #author          :Eli Kleinman
 #release date    :20181018
-#update date     :20190110
-#version         :0.7
+#update date     :20190204
+#version         :0.7.1
 #usage           :python clone_zfs.py
 #notes           :
 #python_version  :2.7.14
@@ -935,6 +935,8 @@ def service_action(z2, srvc, inst, action, mount=None):
             ['mount -o vers=3 nas-devops:/export/' + mount + ' /apps1_clone'])
     elif ((action == "enable") or (action == "disable")):
         getattr(svc_instance, action)("")
+    elif action == "state":
+        return str(getattr(svc_instance, action))
     else:
         getattr(svc_instance, action)()
     logger.info("service %s for %s:%s. successful.", action, srvc, inst)
@@ -1138,7 +1140,10 @@ def rotate_img(dc, host, dst_zone):
         else:
             # Stop Informix DB / Umount /ifxsrv
             service_action(z2, "application/informix_startup", "ifxsrvr", "disable")
-            time.sleep(3)
+            ifx_service = "ENABLED"
+            while service_action(z2, "application/informix_startup", "ifxsrvr", "state") != "DISABLED":
+                logger.info("Waiting for informix services to go OFFLINE, curently %s.", ifx_service)
+                time.sleep(2)
             service_action(z2, "application/informix_mount", "ifxsrc", "disable")
 
         # Rename snap, clone orignal apps-time/ifxdb-do-time => apps1-newtime/ifxdb-do-newtime
