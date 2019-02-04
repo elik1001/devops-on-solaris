@@ -3,6 +3,7 @@
 <b>Added: </b>Added a service state check loop, since all RAD/SMF service handles are done async, I had to add a check to make sure the service fully stopped before re-started.
 
 <b>Version 0.7</b>
+
 <b>Added / Enhancement: </b>This version greatly improves / simplifies all configuration modifications by using the Python <i>ConfigParser</i> module.
 <br>With this version, all configuration details are modified in a new separate configuration file <i>devops_config.ini</i>.
 <i>Note: </i>This means the Python <i>ConfigParser</i> module is now a required module.
