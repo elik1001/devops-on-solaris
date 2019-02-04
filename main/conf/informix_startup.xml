@@ -46,7 +46,7 @@
         <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
         <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
       </exec_method>
-      <exec_method name='stop' type='method' exec='/opt/cloneFiles/bin/db_starup.sh stop' timeout_seconds='20'>
+      <exec_method name='stop' type='method' exec='/opt/cloneFiles/bin/db_starup.sh stop' timeout_seconds='30'>
         <method_context>
           <method_environment>
             <envvar name='INFORMIXSERVER' value='bnhdops'/>
