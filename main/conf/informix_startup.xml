@@ -18,7 +18,7 @@
     <dependency name='network' grouping='require_all' restart_on='error' type='service'>
       <service_fmri value='svc:/milestone/network'/>
     </dependency>
-    <exec_method name='stop' type='method' exec=':true' timeout_seconds='60'>
+    <exec_method name='stop' type='method' exec=':true' timeout_seconds='90'>
       <propval name='action_authorization' type='astring' value='solaris.smf.manage.db'/>
       <propval name='modify_authorization' type='astring' value='solaris.smf.manage.db'/>
       <propval name='value_authorization' type='astring' value='solaris.smf.manage.db'/>
