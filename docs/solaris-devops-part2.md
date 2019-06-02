@@ -741,8 +741,10 @@ system/management/rad/module/rad-zonemgr          0.5.11-0.175.3.32.0.1.0    i--
 Finally, we can now use the script to clone zones, the usage options are below.
 <pre>
 ./devops_manager.py -h
-usage: devops_manager.py [-h] [-e [{test,dev,stage}]] [-s | -d | -r {app,db}]
-                         (-i  | -l [LISTZONES])
+usage: devops_manager.py [-h] [-e [{test,dev,stage}]] -u USER [-p [PASSWORD]]
+                         [-t [{app,db}]] [-v DBVERSION]
+                         [-s | -d | -r {app,db}] [-U USERID | -a [ALL]]
+                         [-i  | -l [{sum,det,listZones}] | -n ]
 
 Create VM(zone) with associated /apps1 clone
 
@@ -750,14 +752,29 @@ optional arguments:
   -h, --help            show this help message and exit
   -e [{test,dev,stage}], --env [{test,dev,stage}]
                         select environment dev, test, stage(default is dev)
-  -s, --imgStat         display VM(zone) IP / Port status
-  -d, --delete          delete VM(zone) with associated snap
+  -u USER, --user USER  create zone with give login credentials.
+  -p [PASSWORD], --password [PASSWORD]
+                        password for give login credentials.
+  -t [{app,db}], --appType [{app,db}]
+                        select zone/VM type. app or db(default is app)
+  -v DBVERSION, --dbVersion DBVERSION
+                        create / rotate zone using given db version(default is
+                        db_version in devops_config.ini).
+  -s, --imgStat         returns VM(zone) live information, e.g. Global Zone,
+                        IP, Port, File System, details.
+  -d, --delete          delete VM(zone) with associated snap(s)
   -r {app,db}, --rotateImg {app,db}
-                        rotate / sync update /apps1 or refresh /ifxsrv in a
-                        VM/zone.
-  -i , --jiraid         associated Jira ID
-  -l [LISTZONES], --listZones [LISTZONES]
-                        List all Active Zone resources
+                        rotate / sync update /apps1. for informix DB: refresh
+                        to latest DB copy(/ifxsrv).
+  -U USERID, --userID USERID
+                        returns zones created by given user ID.
+  -a [ALL], --all [ALL]
+                        returns zones created by all users.
+  -i [], --jiraid []    associated Jira ID
+  -l [{sum,det,listZones}], --listZones [{sum,det,listZones}]
+                        list all active zones, options are summary or
+                        details(sum, det)
+  -n [], --dbVers []    New / updated DB version
 </pre>
 <i>Note: </i>Before using the script, make sure to updated the settings like user/password ZFSSA IP address, etc. that reflects your environment.
 
@@ -780,7 +797,7 @@ zfsproject = do_project
 [ZFS_SRC_FS]
 # ZFS source filesystem
 zfssrcfs.1 = apps1-prod
-zfssrcfs.2 = ifxdb-do
+#zfssrcfs.2 = ifxdb-do
 
 [ZFS_DST_SNAP]
 # ZFS snap filesystem
@@ -789,7 +806,7 @@ zfsdstsnap = snap_
 [ZFS_DST_FS]
 # ZFS clone filesystem(s)
 zfsdstfs.1 = apps1_
-zfsdstfs.2 = ifxdb-do_
+#zfsdstfs.2 = ifxdb-do_
 
 [PROXY]
 # Set system proxy (default is no)
@@ -846,6 +863,9 @@ ldapcert1.1 = cert1
 ldapcert1.2 = cert2
 ldapcert1.3 = cert3
 ldapcert1.4 = cert4
+
+[LDAP_DN]
+ldapdn = ,ou=people,o=bhphoto.com,dc=bnh,dc=com
 
 [NFS]
 # Defines if NFS mounts shuld be defined
@@ -926,6 +946,17 @@ linksrc.1.1 = DB
 linksrc.1.2 = /apps1/db
 linkdst.1.3 = /usr/db
 
+[APP_ROLES]
+# Define each part of the application which role required.
+# roles are:
+# superAdmin: 1, admin level1: 2, user: 5
+delete_vm = 10
+add_vm = 10
+create_db = 10
+rotate_app = 10
+update_db_ver = 10
+rotate_db = 5
+
 [OTHER]
 # Below is defined LD_LIBRARY_PATH, and project data, to be updated at install time
 # Options are: None, or a PATH
@@ -934,27 +965,44 @@ linkdst.1.3 = /usr/db
 etc_profile = export LD_LIBRARY_PATH=/usr/lib/sparcv9:$LD_LIBRARY_PATH
 etc_user_attr = db::::project=group.db;lock_after_retries=no;auths=solaris.smf.manage.db
 </pre>
-Cloning a zone.
+
+An example of a db_version file.
+cat db_version.ini
 <pre>
-./devops_manager.py -i jir162
-Evaluating system resources and availability. please wait...
-Cloning VM/Zone z-1542812804-jir162 and associated file systems
-Progress is being logged to zone_vm.log
-------------------------------
-New VM/Zone z-1542812804-jir162 is available on dc1-host1-gz with. 
-IP Address: 10.25.0.18 
-Port: 31018
-------------------------------
-Installation of zone z-1542812804-jir162 in HA successfully completed.
-------------------------------
-New VM/Zone z-1542812804-jir162 is available on dc2-host1-gz with. 
-IP Address: 10.25.0.18 
-Port: 31018
-------------------------------
-Installation of zone z-1542812804-jir162 in DR successfully completed.
+1
 </pre>
 
-Rotaing a zone.
+Getting live zone status.
+<pre>
+./devops_manager.py -s -u usera -i jira122 -p
+Pulling status...
+------------------------------
+Finding server containing zone for jira122 in DR.
+Pulling status...
+------------------------------
+Finding server containing zone for jira122 in HA.
+Found jira122 on dc1-devops2 in HA.
+Found jira122 on dc2-devops2 in DR.
+===============================================================
+******* NOTE: Informix is only running on dc1-devops2 *******
+                         (devops2)                      
+===============================================================
+
+-------========= Active data center =========-------
+        VM/Zone Name: z-1556827881-jira122
+        Hostname: devops2
+        Zone Port: 31019
+        DB Port: 31519
+        Internal IP Address: 10.25.0.19
+        VM Mount: /apps1
+        DB Mount: /ifxsrv
+        VM Mount source: /export/apps1_z-1556827881-jira122
+        DB Mount source: /export/ifxdb-do_v-5-z-1556827881-jira122
+------------------------------
+...
+</pre>
+
+Rotaing an app zone.
 <pre>
 ./devops_manager.py -r -i jir162
 Finding server containing zone for jir162 in HA.
@@ -965,6 +1013,19 @@ Finding server containing zone for jir162 in DR.
 Found jir162 on dc2-host4-gz in DR.
 (DR)Rotating /apps1(apps1_z-1542812804-jir162) in zone z-1542812804-jir162.. please wait...
 (DR)Rotation of /apps1(apps1_z-1542812804-jir162) in zone z-1542812804-jir162 completed successfully.
+</pre>
+
+Rotaing a db zone.
+<pre>
+./devops_manager.py -i jira121 -r db -u usera
+Finding server containing zone for jira121 in HA.
+Found jira121 on dc1-devops1 in HA.
+(/ifxsrv)Rotating HA(ifxdb-do_v-5-z-1556827550-jira121) mount in zone z-1556827550-jira121.. please wait...
+(/ifxsrv)Rotation of HA(ifxdb-do_v-5-z-1556827550-jira121) mount in zone z-1556827550-jira121 completed successfully.
+Finding server containing zone for jira121 in DR.
+Found jira121 on dc2-devops1 in DR.
+(/ifxsrv)Re-mounting DR(ifxdb-do_v-5-z-1556827550-jira121) mount in zone z-1556827550-jira121.. please wait...
+(/ifxsrv)Re-mount of DR(ifxdb-do_v-5-z-1556827550-jira121) mount in zone z-1556827550-jira121 completed successfully.
 </pre>
 
 Deleteing a zone.
@@ -983,63 +1044,77 @@ Progress is being logged in zone_vm.log
 Uninstall/delete completed successfully.
 </pre>
 
-Checking zone resources
+Checking zone resources.
+Getting the most information...(adding -l det and -a)
+Note: -a for all zones, and -l det for full details.
 <pre>
-./devops_manager.py -l          
+./devops_manager.py -l det -u usera -a
+Please enter usera's LDAP password :
+Note: you are accessing this application as a: admin
+
 Checking system resources. please wait...
 
------------========= HA ==========----------
-[
-    {
-        "freeMem": 364020, 
-        "host": "dc1-host1-gz", 
-        "loadavg15": 24.96875, 
-        "zonecount": 15
-    }, 
-    {
-        "freeMem": 140461, 
-        "host": "dc1-host2-gz", 
-        "loadavg15": 2.00390625, 
-        "zonecount": 5
-    }, 
-    {
-        "freeMem": 14016, 
-        "host": "dc1-host3-gz", 
-        "loadavg15": 0.6015625, 
-        "zonecount": 0
-    }, 
-    {
-        "freeMem": 185990, 
-        "host": "dc1-host4-gz", 
-        "loadavg15": 0.16015625, 
-        "zonecount": 7
-    }
-]
------------========= DR ==========----------
-[
-    {
-        "freeMem": 129304, 
-        "host": "dc2-host1-gz", 
-        "loadavg15": 15.40625, 
-        "zonecount": 11
-    }, 
-    {
-        "freeMem": 460722, 
-        "host": "dc2-host2-gz", 
-        "loadavg15": 2.890625, 
-        "zonecount": 5
-    }, 
-    {
-        "freeMem": 14007, 
-        "host": "dc2-host3-gz", 
-        "loadavg15": 0.6015625, 
-        "zonecount": 0
-    }, 
-    {
-        "freeMem": 196840, 
-        "host": "dc2-host4-gz", 
-        "loadavg15": 0.27734375, 
-        "zonecount": 7
-    }
-]
+----------------============= HA =============---------------
+
+Global Zone:         devops1 / (dc1-devops1)
+----------------============= ++ =============---------------
+Please wait... while we gather information...
+z-1559233309-jiraMenu5           : [------------------------->  ]92%
+Active Zones:
+------------------------------------------------------------
+   ZONE NAME                        TYPE  VER  PORT   CREATED BY
+------------------------------------------------------------
+   z-db-source                      DB    N/A  31002  root     
+   z-1551898417-jircopy020519       APP   N/A  31012  userc  
+   z-1552923560-jira124             APP   N/A  31013  userc  
+   z-1554480751-UNX-999             APP   N/A  31011  userc  
+   z-1555593119-migration-master    APP   N/A  31016  userc    
+   z-fs-source                      FS    v1   31003  root     
+   z-1557156336-UNX-159412          APP   v5   31017  userb    
+   z-db-v6-1557163375-db106         DB    v6   31018  usera     
+   z-1557175109-UNX-159411          APP   v5   31019  userb    
+   z-1557858367-jiraMenu            APP   v6   31015  usera     
+   z-1559231863-jiraMenu3           APP   v5   31020  usera     
+   z-1559233309-jiraMenu5           APP   v5   31021  usera     
+-------------------------------------------------------------
+   * Denotes the default(active) DB
+----------------============= ++ =============---------------
+Zones Details:
+------------------------------------------------------------
+   ID:                               1        
+   Active Zone Count:                12       
+   Global Zone Free Memory:          187464 Mb
+   15 Minute Load Average:           0.25     
+   Current DB version:               5        
+------------------------------------------------------------
+
+Global Zone:         devops2 / (dc1-devops2)
+----------------============= ++ =============---------------
+Please wait... while we gather information...
+z-1559232422-jiraMenu4           : [------------------------>   ]89%
+Active Zones:
+------------------------------------------------------------
+   ZONE NAME                        TYPE  VER  PORT   CREATED BY
+------------------------------------------------------------
+   z-1550602019-jira103             APP   N/A  31011  userc  
+   z-1550610548-jira104             APP   N/A  31012  userc  
+   z-1554125109-genero-poc          APP   N/A  31014  userc  
+   z-fs-source                      FS    v1   31003  root     
+   z-db-v5-1556825338-db105         DB    v5*  31018  usera     
+   z-1557163823-UNX-159413          APP   v5   31013  userb    
+   z-1557239055-family-test         APP   v5   31015  userb    
+   z-1558040749-jiraMenu2           APP   v5   31016  usera     
+   z-1559232422-jiraMenu4           APP   v5   31017  usera     
+-------------------------------------------------------------
+   * Denotes the default(active) DB
+----------------============= ++ =============---------------
+Zones Details:
+------------------------------------------------------------
+   ID:                               2        
+   Active Zone Count:                9        
+   Global Zone Free Memory:          174867 Mb
+   15 Minute Load Average:           0.27     
+   Current DB version:               5        
+------------------------------------------------------------
+----------------============= DR =============---------------
 </pre>

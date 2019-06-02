@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-#title           :clone_zfs.py
+#title           :devops_manager.py
 #description     :Creating a DevOps like on Solaris
 #author          :Eli Kleinman
 #release date    :20181018
-#update date     :20190204
-#version         :0.7.1
+#update date     :20190531
+#version         :0.8
 #usage           :python clone_zfs.py
 #notes           :
 #python_version  :2.7.14
@@ -23,9 +23,12 @@ import rad.auth as rada
 import os
 import re
 import sys
+import pwd
 import time
 import datetime
 import json
+import ldap
+import getpass
 import logging
 import configparser
 import argparse
@@ -42,40 +45,51 @@ parser = argparse.ArgumentParser(
 parser.add_argument('-e', '--env', nargs='?', default='dev', type=str,
                     choices=['test', 'dev', 'stage'],
                     help='select environment dev, test, stage(default is dev)')
+parser.add_argument('-u', '--user', default=False, type=str,
+                    required=True,
+                    help='create zone with give login credentials.')
+parser.add_argument('-p', '--password', nargs='?', default=None, type=str,
+                    help='password for give login credentials.')
+parser.add_argument('-t', '--appType', nargs='?', default=False, type=str,
+                    choices=['app', 'db'],
+                    const='app',
+                    help='select zone/VM type. app or db(default is app)')
+parser.add_argument('-v', '--dbVersion', default=False, type=int,
+                    help='create / rotate zone using given db version(default is db_version in devops_config.ini).')
+
 group1 = parser.add_mutually_exclusive_group()
 group1.add_argument('-s', '--imgStat', action='store_true', default=False,
-                    help='display VM(zone) IP / Port status')
+                    help='returns VM(zone) live information, e.g. Global Zone, IP, Port, File System, details.')
 group1.add_argument('-d', '--delete', action='store_true', default=False,
-                    help='delete VM(zone) with associated snap')
+                    help='delete VM(zone) with associated snap(s)')
 group1.add_argument('-r', '--rotateImg', default=False, type=str,
                     choices=['app', 'db'],
-                    help='rotate / sync update /apps1 or refresh /ifxsrv in a VM/zone.')
+                    help='rotate / sync update /apps1. for informix DB: refresh to latest DB copy(/ifxsrv).')
 
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('-i', '--jiraid', metavar='', required=False, type=str,
+group2 = parser.add_mutually_exclusive_group()
+group2.add_argument('-U', '--userID', default=None, type=str,
+                    help='returns zones created by given user ID.')
+group2.add_argument('-a', '--all', nargs='?', default=None, type=str,
+                    const='allUsers',
+                    help='returns zones created by all users.')
+
+group = parser.add_mutually_exclusive_group()
+group.add_argument('-i', '--jiraid', nargs='?', metavar='', required=False, type=str,
                    help='associated Jira ID')
-group.add_argument('-l', '--listZones', nargs='?', const="listZones",
+group.add_argument('-l', '--listZones', nargs='?', const='listZones',
+                   choices=['sum', 'det', 'listZones'],
                    default=None, required=False, type=str,
-                   help='List all Active Zone resources')
+                   help='list all active zones, options are summary or details(sum, det)')
+group.add_argument('-n', '--dbVers', nargs='?', metavar='', required=False, type=str,
+                   const='dbVers', default=None,
+                   help='New / updated DB version')
+
 args = parser.parse_args()
+
+os.chdir("/export/home/confmgr")
 
 # Get date and time
 dt = datetime.datetime.now()
-
-if args.listZones is not None:
-    if args.delete or args.imgStat or args.rotateImg:
-        d = {'app_name': sys.argv[0]}
-        print """usage: {app_name} [-h] [-l [LISTZONES]] [-e [ENV]] -i
-                           [-d | -r | -s]
-{app_name}: error: argument -i/--jiraid is required""".format(**d)
-        sys.exit(0)
-    else:
-        # Set filesystem, zone-name
-        dst_zone = "z-" + dt.strftime("%s") + "-" + "status"
-        pass
-else:
-    # Set filesystem, zone-name
-    dst_zone = "z-" + dt.strftime("%s") + "-" + args.jiraid
 
 # Set working environment(defaults to dev).
 work_env = args.env
@@ -94,13 +108,15 @@ def set_logging(logName):
     handler.setLevel(logging.DEBUG)
 
     # create formatter
+    extra = {'user_name': args.user}
     formatter = logging.Formatter(
-        '%(asctime)s:%(name)s:%(levelname)s: %(message)s'
+        '%(asctime)s:%(name)s:%(user_name)s:%(levelname)s: %(message)s'
         )
     handler.setFormatter(formatter)
 
     # add handler to logger
     logger.addHandler(handler)
+    logger = logging.LoggerAdapter(logger, extra)
 
 
 def get_config(section, item=None, zone_name=None, item_type=None, dc=None):
@@ -152,7 +168,16 @@ def get_config(section, item=None, zone_name=None, item_type=None, dc=None):
         return str(config_details[item])
 
 
-def get_file_data(src, dc):
+def write_file_data(src, data):
+    try:
+        f = open(src, "w")
+    except IOError, e:
+        print e
+    f.write(data)
+    f.close()
+
+
+def get_file_data(src, dc=None):
     try:
         f = open(src, "r")
     except IOError, e:
@@ -165,10 +190,63 @@ def get_file_data(src, dc):
     return data
 
 
+if args.dbVersion:
+    db_version = args.dbVersion
+else:
+    try:
+        db_version = int(get_file_data('db_version.ini'))
+    except Exception as error:
+        print("ERROR: No DB config file was found, generating one with db version of 5. \nPlease make sure version is set correctly.")
+        write_file_data('db_version.ini', str('5'))
+        db_version = int(get_file_data('db_version.ini'))
+
+if (args.listZones is not None or args.dbVers is not None):
+    if args.delete or args.imgStat or args.rotateImg:
+        d = {'app_name': sys.argv[0]}
+        print """usage: devops_manager.py [-h] [-e [{{test,dev,stage}}]] -u USER [-p [PASSWORD]]
+                                          [-t [{{app,db}}]] [-s | -d | -r {{app,db}}]
+                                          [-U USERID | -a [ALL]]
+                                          (-i  | -l [{{sum,det,listZones}}])
+{app_name}: error: argument -i/--jiraid is required""".format(**d)
+        sys.exit(0)
+    elif args.appType:
+        d = {'app_name': sys.argv[0]}
+        print """usage: devops_manager.py [-h] [-e [{{test,dev,stage}}]] -u USER [-p [PASSWORD]]
+                                          [-t [{{app,db}}]] [-s | -d | -r {{app,db}}]
+                                          [-U USERID | -a [ALL]]
+                                          (-i  | -l [{{sum,det,listZones}}])
+{app_name}: error: argument -t/--appType: not allowed with argument -l/--listZones""".format(**d)
+        sys.exit(0)
+    else:
+        # Set filesystem, zone-name
+        dst_zone = "z-" + dt.strftime("%s") + "-" + "status"
+        pass
+else:
+    if args.jiraid is None:
+        while True:
+            try:
+                jira_id = raw_input("Please enter a Jira ID: ")
+            except Exception as error:
+                print('ERROR', error)
+            if jira_id:
+                break
+    else:
+        jira_id = args.jiraid
+
+    if (args.appType == "db"):
+        # Set db zone name
+        # dst_zone = "z-db-" + "v" + str(db_version + 1)  + "-" + dt.strftime("%s") + "-" + args.jiraid
+        dst_zone = "z-db-" + "v" + str(db_version + 1)  + "-" + dt.strftime("%s") + "-" + jira_id
+    else:
+        # Set app zone name
+        # dst_zone = "z-" + dt.strftime("%s") + "-" + args.jiraid
+        dst_zone = "z-" + dt.strftime("%s") + "-" + jira_id
+
+
+
 # ====================== ZFS related ======================
 
 # Set system proxy
-
 if get_config('PROXY', 'http_proxy') != "None":
     os.environ['http_proxy'] = get_config('PROXY', 'http_proxy')
 if get_config('PROXY', 'https_proxy') != "None":
@@ -221,7 +299,10 @@ low_port = int(get_config('CONFIG', 'low_port'))
 src_zone = get_config('CONFIG', 'src_zone')
 
 # Dest (Jira) zone name
-jiraid = args.jiraid
+try:
+    jiraid = jira_id
+except NameError:
+    pass
 
 # NFS services to started
 nfs_services = [
@@ -243,36 +324,237 @@ if get_config('LDAP', 'ldap') == "yes":
 # Sc Profile xml to use
 sc_profile_templ = get_config('CONFIG', 'sc_profile')
 
+# Set LDAP user DN
+user_dn = "uid=" + args.user + get_config('LDAP_DN','ldapdn')
+
 # ====================== End of settings ======================
 
 
 # ====================== Main call ===========================
 
 
-def main(dc, host, drhost):
+def main(dc, host, drhost, dst_zone, user_role, user_role_des=None):
     """Main calling program selector.
     the selected program will spawn in parallel two
     executions(HA and DR), one execution per data center.
     """
     if args.delete:
-        p = Process(target=delete_vm, args=(dc, host,))
-        p.start()
+        if user_role >= int(get_config('APP_ROLES', 'delete_vm')):
+            p = Process(target=delete_vm, args=(dc, host, user_role, user_role_des,))
+            p.start()
+        else:
+            print "Access denied."
+            sys.exit(0)
     elif args.imgStat:
-        p = Process(target=display_img_stat, args=(dc, host, dst_zone,))
+        p = Process(target=display_img_stat, args=(dc, host, dst_zone, user_role, user_role_des,))
         p.start()
     elif args.rotateImg:
-        rotate_img(dc, host, dst_zone)
+        if args.rotateImg == "app":
+            if user_role >= int(get_config('APP_ROLES', 'rotate_app')):
+                rotate_img(dc, host, user_role, user_role_des, dst_zone)
+            else:
+                print "Access denied."
+                sys.exit(0)
+        rotate_img(dc, host, user_role, user_role_des, dst_zone)
     elif args.listZones is not None:
-        perf = get_system_resources(dc, host)
-        print "-----------========= " + dc.upper() + " ==========----------"
-        print json.dumps(perf, indent=4, sort_keys=True)
+        print_system_resources(dc, host)
     else:
-        if dc == "ha":
-            clone_fs(dc, host, dst_zone, drhost)
-        p = Process(target=clone_vm, args=(dc, host,))
-        p.start()
+        if args.appType == "db":
+            if user_role >= int(get_config('APP_ROLES', 'create_db')):
+                pass
+            else:
+                print "Access denied."
+                sys.exit(0)
+            if dc == "ha":
+                next_db_version = list_fs("ifxdb-do_v-", "y")
+                # next_db_version = 0
+                # dst_zone = "z-db-" + "v" + str(next_db_version + 1)  + "-" + dt.strftime("%s") + "-" + args.jiraid
+                dst_zone = "z-db-" + "v" + str(next_db_version + 1)  + "-" + dt.strftime("%s") + "-" + jira_id
+                db_newfs = "ifxdb-do_" + "v-" + str(next_db_version + 1)
+                newfs_rtr = verif_clone(db_newfs)
+                if newfs_rtr == 200:
+                    close_con()
+                    print "Filesystem %s exists. Error code: %s \nExiting." % (db_newfs, newfs_rtr)
+                    logger.error("Filesystem %s exists. Error code: %s exiting.", db_newfs, newfs_rtr)
+                    sys.exit(newfs_rtr)
+                else:
+                    logger.info("Filesystem %s is valid. continuing...", db_newfs)
+                create_fs(db_newfs, "30G")
+            else:
+                next_db_version = list_fs("ifxdb-do_v-", "y")
+                # next_db_version = 0
+                # dst_zone = "z-db-" + "v" + str(next_db_version)  + "-" + dt.strftime("%s") + "-" + args.jiraid
+                dst_zone = "z-db-" + "v" + str(next_db_version)  + "-" + dt.strftime("%s") + "-" + jira_id
+            p = Process(target=clone_vm, args=(dc, host, user_role, user_role_des, args.appType, dst_zone,))
+            p.start()
+        else:
+            if dc == "ha":
+                clone_fs(dc, host, dst_zone, drhost, dst_zone)
+            p = Process(target=clone_vm, args=(dc, host, user_role, user_role_des, None, dst_zone,))
+            p.start()
+
+# ====================== Access roles ===========================
+
+
+def ldap_initialize(remote, port, user, password, use_ssl=False, timeout=None):
+    """Connects to an ldap server.
+    accepts: remote, port, user, password, use_ssl, timeout.
+    returns: an ldap vaild connection
+    """
+    prefix = 'ldap'
+    if use_ssl is True:
+        prefix = 'ldaps'
+        # Disable verification
+        # ldap.set_option(ldap.OPT_X_TLS_REQUIRE_CERT, ldap.OPT_X_TLS_NEVER)
+        # Debug
+        # ldap.set_option(ldap.OPT_DEBUG_LEVEL, 255)
+        ldap.set_option(ldap.OPT_PROTOCOL_VERSION, 3)
+        ldap.set_option(ldap.OPT_X_TLS_CACERTFILE, "certs.pem")
+        ldap.set_option(ldap.OPT_X_TLS,ldap.OPT_X_TLS_DEMAND)
+        ldap.set_option(ldap.OPT_X_TLS_DEMAND, True)
+
+    if timeout:
+        ldap.set_option(ldap.OPT_NETWORK_TIMEOUT, timeout)
+
+    server = prefix + '://' + remote + ':' + '%s' % port
+    conn = ldap.initialize(server)
+    ldap.set_option(ldap.OPT_REFERRALS, 0)
+    conn.simple_bind_s(user, password)
+    return conn
+
+def verify_cred(user_dn, password, user):
+    """Verify users ldap credentials.
+    accepts: user_dn, password, user
+    """
+    ldap_servers = ["nyildpr7.bnh.com:1636", "nyildpr8.bnh.com:1636"]
+    ldap_base = "o=bhphoto.com,dc=bnh,dc=com"
+    searchFilter = "(&(uid=" + user + ")(objectClass=posixAccount))"
+    searchAttribute = ["cn"]
+
+    for ldap_server in ldap_servers:
+        try:
+            # print "Connecting to ldap server:", ldap_server
+            con  = ldap_initialize(ldap_server.split(':')[0], ldap_server.split(':')[1], user_dn, password, True, 2)
+        except ldap.SERVER_DOWN, e:
+            print ("ERROR:"), e.message['desc'], ldap_server
+            continue
+        except (ldap.INVALID_CREDENTIALS, ldap.NO_SUCH_OBJECT) as e:
+            print("ERROR: Username or password is incorrect.")
+            sys.exit(0)
+        except ldap.LDAPError, e:
+          if type(e.message) == dict and e.message.has_key('desc'):
+              print e.message['desc']
+              sys.exit(0)
+          else: 
+              print e
+              break
+          sys.exit(0)
+
+        # Return ldap data
+        # try:
+            # result = con.search_s(ldap_base, ldap.SCOPE_SUBTREE, searchFilter, searchAttribute)
+            # print result
+        # except ldap.LDAPError, e:
+            # print e
+        con.unbind()
+        break
+
+
+def get_user_role(user):
+    """Get user access role.
+    accepts: a user account
+    returns: the users role (can be admin or user).
+    """
+    user_access = "access.db"
+    with open(user_access, "r" ) as access:
+        for usr in access:
+            if usr.startswith(user + ':', 0):
+                user_access = str(usr.split(':')[1])
+                user_access_des = str(usr.split(':')[2])
+                return int(user_access), user_access_des
+        
+        print "Access denied."
+        sys.exit(0)
+            
+
 
 # ====================== ZFSSA Reset Calls ===========================
+
+
+def create_fs(zfsdstfs, zfsquota=None):
+    """Create a ZFS filesystem.
+    accepts: a zfs filesystem name, a file system quota.
+    returns: the ZFS return status code.
+    """
+    logger.info("Creating new db file system: %s.", zfsdstfs)
+    if zfsquota is not None:
+        payload = {'name': zfsdstfs, 'quota': zfsquota}
+    r = requests.post(
+        "%s/api/storage/v1/pools/%s/projects/%s/filesystems"
+        % (url, zfspool, zfsproject), auth=zfsauth, verify=False,
+        headers=jsonheader, data=json.dumps(payload),
+        )
+    if r.status_code == 201:
+        logger.info("Successfully created new db file system: %s.", zfsdstfs)
+    else:
+        logger.error("We are unable to created the new db file system: %s. the error code was: %s", zfsdstfs, r.status_code)
+
+
+def list_fs(zfsdstfs, log_out=None, db_count=None, new_db_version=None):
+    """List ZFS filesystems.
+    accepts: a zfs filesystem name
+    returns: the ZFS return status code.
+    """
+    if log_out:
+        logger.info("Getting latest available db version for %s.", zfsdstfs)
+    else:
+        print("Getting latest available db version for %s." % zfsdstfs)
+    r = requests.get(
+        "%s/api/storage/v1/pools/%s/projects/%s/filesystems?filter=%s"
+        % (url, zfspool, zfsproject, zfsdstfs), auth=zfsauth, verify=False,
+        headers=jsonheader,
+        )
+    
+    if r.status_code == 200:
+        db_fs_list = []
+        for fs in r.json()['filesystems']:
+            if int(fs['name'].split('-')[2]) not in db_fs_list:
+                db_fs_list.append(int(fs['name'].split('-')[2]))
+
+        if db_count == "verif":
+            if int(new_db_version) in db_fs_list:
+                return
+            else:
+                if log_out:
+                    logger.info("No DB was found for version: %s.. No changes were made, please create one before updating. exiting.", new_db_version)
+                else:
+                    print("\nERROR: No DB was found for version: %s.. \nNo changes were made, please create one before updating. exiting." % new_db_version)
+                sys.exit(1)
+
+        db_fs_list.sort()
+
+        if len(db_fs_list) < 1:
+            if log_out:
+                logger.error("No DB filesystem to copy from.")
+            else:
+                print("ERROR: No DB filesystem to copy from.")
+                sys.exit(1)
+
+        if log_out:
+            logger.info("Successfully got next version as ifxdb-do_v-%s.", int(db_fs_list[-1] + 1))
+        else:
+            print("Successfully got next version as ifxdb-do_v-%s." % int(db_fs_list[-1] + 1))
+    else:
+        if log_out:
+            logger.error("Unable to get list of file systems.")
+        else:
+            print("Unable to get list of file systems.")
+        sys.exit(1)
+
+    if db_count:
+        return len(db_fs_list)
+    else:
+        return db_fs_list[-1]
 
 
 def verif_snap(zfsdstsnap, zfssrcfs):
@@ -318,12 +600,15 @@ def rename_snap(zfssrcsnap, zfsdstsnap, zfssrcfs):
     return r.status_code
 
 
-def create_clone(zfsdstsnap, zfsdstclone, zfssrcfs):
+def create_clone(zfsdstsnap, zfsdstclone, zfssrcfs, zfsquota=None):
     """Creates a ZFS clone based on an exsistng snapshot.
     accepts: the exsistng ZFS snapshot name, new ZFS clone name.
     returns: the ZFS return status code.
     """
-    payload = {'share': zfsdstclone}
+    if zfsquota is not None:
+        payload = {'share': zfsdstclone, 'quota': zfsquota}
+    else:
+        payload = {'share': zfsdstclone}
     r = requests.put(
         "%s/api/storage/v1/pools/%s/projects/%s/filesystems/%s/snapshots/%s/clone"
         % (url, zfspool, zfsproject, zfssrcfs, zfsdstsnap),
@@ -332,7 +617,7 @@ def create_clone(zfsdstsnap, zfsdstclone, zfssrcfs):
     return r.status_code
 
 
-def verif_clone(zfsdstsnap, zfsdstclone):
+def verif_clone(zfsdstclone):
     """Verify a ZFS clone exsist.
     accepts: the exsistng ZFS snapshot and clone name.
     returns: the ZFS return status code.
@@ -504,14 +789,19 @@ def get_system_resources(dc, host_grp):
         memvalue = int(get_system_load("pages", "unix", "0", "system_pages") * pagesize / 1024 / 1024)
         if args.listZones is not None:
             d = {
-                'ID': host['id'], 'Hostname': host[dc],
-                '15 minute load average': '%.2f' % loadvalue, 'Free memory': '%s Mb' % memvalue,
-                'Zone count': zonecount, 'Active zones': zone_list,
+                'ID': host['id'],
+                'Hostname': host[dc],
+                '15-minute-load-average': '%.2f' % loadvalue,
+                'Free-memory': '%s Mb' % memvalue,
+                'Zone-count': zonecount,
+                'Active-zones': zone_list,
                 }
         else:
             d = {
-                'id': host['id'], 'host': host[dc],
-                'loadavg15': loadvalue, 'freeMem': memvalue,
+                'id': host['id'],
+                'host': host[dc],
+                'loadavg15': loadvalue,
+                'freeMem': memvalue,
                 'zonecount': zonecount
                 }
         if (memvalue < minmem or loadvalue > 30) and (args.listZones is None):
@@ -524,12 +814,183 @@ def get_system_resources(dc, host_grp):
     return perf
 
 
-def gz_to_use(dc, host_grp):
+def progressBar(name, value, endvalue, bar_length=28, width=32):
+
+        percent = float(value) / endvalue
+        arrow = '-' * int(round(percent*bar_length) - 1) + '>'
+        spaces = ' ' * (bar_length - len(arrow))
+        sys.stdout.write("\r{0: <{1}} : [{2}]{3}%".format(\
+                         name, width, arrow + spaces, int(round(percent*100))))
+        sys.stdout.flush()
+        if value == endvalue:        
+             sys.stdout.write('\n\n')
+
+def print_system_resources(dc, host):
+    """Prints Zone resources. """
+    db = pickledb.load('ports.db', False)
+    dash = '-' * 60
+    if args.all is None:
+        print "Note: Use -a option to display all active VM/Zones...."
+    print "----------------============= " + dc.upper() + " =============---------------"
+    perf = get_system_resources(dc, host)
+    for i in perf:
+        d = []
+        zd = {}
+        zone_port_list = ['z-db-source', 'z-fs-source']
+        data = [['', 'ZONE NAME', 'TYPE', 'VER', 'PORT', 'CREATED BY']]
+        print '\n%s  %14s / (%s)' % ('Global Zone:', i['Hostname'].split('-')[1], i['Hostname'])
+        print "----------------============= ++ =============---------------"
+        host_connect(i['Hostname'])
+        print "Please wait... while we gather information..."
+        for key, value in i.iteritems():
+            if key == "ID":
+                zd['ID'] = str(value)
+            elif key == "Zone-count":
+                zd['Zone-count'] = str(value)
+            elif key == "Free-memory":
+                zd['Free-memory'] = str(value)
+            elif key == "15-minute-load-average":
+                zd['15-minute-load-average'] = str(value)
+            elif key == "Active-zones":
+                for zone in value:
+                    if zone.startswith('z-db-source'):
+                        zone_type = "DB"
+                        zone_ver = "N/A"
+                    elif zone.startswith('z-db-'):
+                        zone_ver = zone.split('-')[2]
+                        zone_type = "DB"
+                        if zone_ver.endswith(str(db_version)):
+                            zone_ver = zone_ver + '*'
+                    elif zone.startswith('z-fs'):
+                        zone_type = "FS"
+                        zone_ver = 'v1'
+                    else:
+                        zone_type = "APP"
+                        
+                        # sys.stdout.write("\rChecking zone: " + zone)
+                        # sys.stdout.flush()
+                        progressBar(zone, value.index(zone), len(value))
+
+                        zones = rc.list_objects(zonemgr.Zone())
+                        z_list = rc.list_objects(
+                                      zonemgr.Zone(), radc.ADRGlobPattern( {"name": zone})
+                                      )
+                        zz = rc.get_object(z_list[0])
+
+                        global zcon
+                        zcon = radcon.connect_zone(rc, zz.name, "confmgr")
+                        cur_db_mount = service_action(zz, "application/informix_mount", "ifxsrc", "get_prop")
+                        try:
+                            if cur_db_mount.split('-')[2].isdigit() and len(cur_db_mount.split('-')[2]) < 3:
+                                zone_ver = 'v' + cur_db_mount.split('-')[2]
+                            else:
+                                zone_ver = 'N/A'
+                        except (IndexError, ValueError) as e:
+                            logger.error("DB version for zone %s not avalable: %s", zz.name, e)
+                            zone_ver = 'N/A'
+                            pass
+                        try:
+                            zcon.close()
+                        except (NameError, AttributeError) as e:
+                            zcon = None
+
+                    if args.all is None:
+                        if (zone in zone_port_list) or zone.startswith('z-155') or zone.startswith('z-db-v'):
+                            if args.userID is None:
+                                if args.user == db.dget(i['Hostname'], zone)['user']:
+                                    d = [
+                                         '',
+                                         zone,
+                                         zone_type,
+                                         zone_ver,
+                                         db.dget(i['Hostname'], zone)['port'],
+                                         db.dget(i['Hostname'], zone)['user']
+                                         ]
+                                    data.append(d)
+                            else:
+                                if args.userID == db.dget(i['Hostname'], zone)['user']:
+                                    d = [
+                                         '',
+                                         zone, 
+                                         zone_type, 
+                                         zone_ver, 
+                                         db.dget(i['Hostname'], zone)['port'], 
+                                         db.dget(i['Hostname'], zone)['user']
+                                         ]
+                                    data.append(d)
+                    else:
+                        if (zone in zone_port_list) or zone.startswith('z-155') or zone.startswith('z-db-v'):
+                            try:
+                                host_port = db.dget(i['Hostname'], zone)['port']
+                            except KeyError as e:
+                                host_port = 'error'
+                                logger.error("Port/Key not found: %s", e)
+                                logger.error("%s", sys.exc_type),
+                            try:
+                                host_user = db.dget(i['Hostname'], zone)['user']
+                            except KeyError as e:
+                                host_user = 'error'
+                                logger.error("Port/Key not found: %s", e)
+                                logger.error("%s", sys.exc_type),
+                            d = [
+                                 '',
+                                 zone,
+                                 zone_type,
+                                 zone_ver,
+                                 host_port,
+                                 host_user
+                                 ]
+                            data.append(d)
+                        else:
+                            d = [
+                                 '',
+                                 zone,
+                                 '',
+                                 'N/A',
+                                 'N/A',
+                                 'N/A'
+                                 ]
+                            data.append(d)
+        close_con()
+
+        for i in range(len(data)):
+            if i == 0:
+                print('\nActive Zones:')
+                print(dash)
+                print('{:<3s}{:<33s}{:<6}{:<5}{:<7}{:>6}'.format(data[i][0],data[i][1],data[i][2],data[i][3],data[i][4],data[i][5]))
+                print(dash)
+            else:
+                print('{:<3}{:<33}{:<6}{:<5}{:<7}{:<10}'.format(data[i][0],data[i][1],data[i][2],data[i][3],data[i][4],data[i][5]))
+        print "-------------------------------------------------------------"
+        print('{:<3}{:<33}'.format('','* Denotes the default(active) DB'))
+        print "----------------============= ++ =============---------------"
+
+        if (args.listZones == 'det'):
+            print('Zones Details:')
+            print(dash)
+            print('{:<3}{:<34}{:<10}'.format('', 'ID:', zd['ID']))
+            print('{:<3}{:<34}{:<10}'.format('', 'Active Zone Count:', zd['Zone-count']))
+            print('{:<3}{:<34}{:<10}'.format('', 'Global Zone Free Memory:', zd['Free-memory']))
+            print('{:<3}{:<34}{:<10}'.format('', '15 Minute Load Average:', zd['15-minute-load-average']))
+            print('{:<3}{:<34}{:<10}'.format('', 'Current DB version:', int(get_file_data('db_version.ini'))))
+            print(dash)
+
+
+def gz_to_use(dc, host_grp, user_role, user_role_des, dst_zone=None):
     """Picks one Global Zone(system) to use.
     accepts: data center, host dictionary list.
     returns: single Global zone.
     """
-    set_logging(dst_zone + "(" + dc.upper() + ")")
+    if args.appType == "db":
+        global next_db_version
+        next_db_version = list_fs("ifxdb-do_v-")
+        # next_db_version = 0
+        # dst_zone = "z-db-" + "v" + str(next_db_version + 1)  + "-" + dt.strftime("%s") + "-" + args.jiraid
+        dst_zone = "z-db-" + "v" + str(next_db_version + 1)  + "-" + dt.strftime("%s") + "-" + jira_id
+        set_logging(dst_zone + "(" + dc.upper() + ")")
+    else:
+        set_logging(dst_zone + "(" + dc.upper() + ")")
+    logger.info("Note: you are accessing this application as a: %s", user_role_des)
     logger.info("Verifying zone name is not in use, please wait...")
     for host in host_grp:
         logger.info("Checking Global Zone %s", host[dc])
@@ -570,45 +1031,110 @@ def missing_ports(num_list):
         return [src_list[-1]+1]
 
 
-def get_zone_port(gz, zn):
+def update_db_version(new_db_version):
+    """Updates DB version number
+    accepts: global zone, non-global zone.
+    returns: single port number.
+    """
+    if user_role >= int(get_config('APP_ROLES', 'update_db_ver')):
+        pass
+    else:
+        print "Access denied."
+        sys.exit(0)
+
+    if int(new_db_version) == db_version:
+        print "ERROR: New DB version is the same as current.. exiting."
+        sys.exit(1)
+    write_file_data('db_version.ini', str(new_db_version))
+    print "Successfully updated DB version from %s to %s." % (db_version, new_db_version)
+    sys.exit(0)
+
+def get_zone_port(gz, zn, dc, user=None):
     """Picks a zone service(SSH) port.
     accepts: global zone, non-global zone.
     returns: single port number.
     """
     db = pickledb.load('ports.db', False)
+    lock_file = '/var/tmp/.' + dc + '_pickle_db.lock'
+    lock_timeout = 1
+
+    if os.path.exists(lock_file):
+        logger.error("Lock file found will retry in 1 Second(for a max of 10 tries).")
+        while lock_timeout < 10:
+            if os.path.exists(lock_file):
+                time.sleep(1)
+                lock_timeout += 1
+            else:
+                break
+
+    write_file_data(lock_file, "pickle_db lock file")
+    #f = open(lock_file, "w")
+    #f.write("pickle_db lock file")
+    #f.close()
+
     try:
         db.dgetall(gz)
     except KeyError as error:
         db.dcreate(gz)
     if db.dexists(gz, zn):
-        print db.dget(gz, zn)
+        print "ERROR: Zone/port exists with the below info."
+        print ("Server: %s:, Zone: %s") % (gz, zn)
+        print json.dumps(db.dget(gz, zn), indent=4, sort_keys=True)
         db.dadd(gz, (zn, db.dget(gz, zn)))
         db.dump()
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
         sys.exit(0)
-
-    dbList = sorted(db.dvals(gz))
+    port_list = []
+    for val in db.dvals(gz):
+        if int(val['port']) > 31010:
+            port_list.append(int(val['port']))
+    dbList = sorted(port_list)
     if dbList:
         port = missing_ports(dbList)[0]
-        db.dadd(gz, (zn, port))
+        db.dadd(gz, (zn, {'user': user, 'port': port}))
         db.dump()
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
         return port
     else:
-        db.dadd(gz, (zn, low_port))
+        db.dadd(gz, (zn, {'user': user, 'port': low_port}))
         db.dump()
+        if os.path.exists(lock_file):
+            os.remove(lock_file)
         return low_port
 
-
-def del_zone_port(gz, zn):
+def del_zone_port(gz, zn, dc, user=None):
     """Deletes / removes a zone service(SSH) port.
     accepts: global zone, non-global zone.
     """
     db = pickledb.load('ports.db', False)
+    lock_file = '/var/tmp/.' + dc + '_pickle_db.lock'
+    lock_timeout = 1
+
+    if os.path.exists(lock_file):
+        logger.error("Lock file found will retry in 1 Second(for a max of 10 tries).")
+        while lock_timeout < 10:
+            if os.path.exists(lock_file):
+                time.sleep(1)
+                lock_timeout += 1
+            else:
+                break
+
+    write_file_data(lock_file, "pickle_db lock file")
+    #f = open(lock_file, "w")
+    #f.write("pickle_db lock file")
+    #f.close()
+
     try:
         db.dpop(gz, zn)
     except KeyError as e:
         logger.error("Port/Key not found: %s", e)
         logger.error("%s", sys.exc_type)
     db.dump()
+    if os.path.exists(lock_file):
+        os.remove(lock_file)
+
 
 # =================== End Get next avalable port ========================
 
@@ -831,7 +1357,7 @@ def clone_zone(z1, z2, host, dc):
     accepts: source zone name, destination zone name, global zone name.
     """
     logger.info("Generating zone port, used with SSH.")
-    zonePort = get_zone_port(host, z2.name)
+    zonePort = get_zone_port(host, z2.name, dc, args.user)
     logger.info("Generated %s as the zone SSH port.", zonePort)
     sc_profile = run_remote_cmd(z2.name, zonePort, host, "/tmp/", str(get_file_data("conf/" + sc_profile_templ, dc)), "-sc_profile.xml")
     options = ['-c', sc_profile]
@@ -915,24 +1441,57 @@ def service_action(z2, srvc, inst, action, mount=None):
     prints: zone name, global zone, IP address, Port.
     """
     logger.info("%s for service %s:%s in zone %s.", action, srvc, inst, z2.name)
-    svc_instance = zcon.get_object(
-                       smf.Instance(), radc.ADRGlobPattern(
-                           {"service": srvc,
-                            "instance": inst}
-                       )
-                   )
+    if (action == "set_prop" or action == "reset_prop" or action == "get_prop") and (inst == "none"):
+        svc_instance = zcon.get_object(
+            smf.Service(), radc.ADRGlobPattern({"service": srvc})
+            )
+    else:
+        svc_instance = zcon.get_object(
+            smf.Instance(), radc.ADRGlobPattern(
+                           {"service": srvc, "instance": inst})
+            )
     if action == "get_prop":
         if inst == "apps1sync":
             return (str(svc_instance.readProperty("config/sync_stat").values[0]))
+        if inst == "ifxsync":
+            return (str(svc_instance.readProperty("config/sync_stat").values[0]))
+        if inst == "ifxsrc":
+            return (str(svc_instance.readProperty("start/exec").values[0]).split(':')[1].split(' ')[0])
         if inst == "ip":
             svc_instance.refresh()
             ipAddr = svc_instance.readProperty("config/ip_addr").values[0]
             ipPort = svc_instance.readProperty("config/ip_port").values[0]
             return ipAddr, ipPort
+        if inst == "none":
+            return svc_instance.readProperty("apps1_mount/grouping").values[0]
+    elif action == "reset_prop":
+        if inst == "none":
+            svc_instance.writeProperty(
+                "apps1_mount/grouping", smf.PropertyType.ASTRING,
+                ['require_all']
+            )
     elif action == "set_prop":
-        svc_instance.writeProperty(
-            "start/exec", smf.PropertyType.ASTRING,
-            ['mount -o vers=3 nas-devops:/export/' + mount + ' /apps1_clone'])
+        if inst == "none":
+            svc_instance.writeProperty(
+                "apps1_mount/grouping", smf.PropertyType.ASTRING,
+                ['optional_all']
+            )
+        if inst == "ifxsrc":
+            svc_instance.writeProperty(
+                "start/exec", smf.PropertyType.ASTRING,
+                ['mount -o vers=3 nas-devops:/export/' + mount + ' /ifxsrv'])
+        if inst == "ifxdst":
+            svc_instance.writeProperty(
+                "start/exec", smf.PropertyType.ASTRING,
+                ['mount -o vers=3 nas-devops:/export/' + mount + ' /ifxsrv_clone'])
+        if inst == "apps1dst":
+            svc_instance.writeProperty(
+                "start/exec", smf.PropertyType.ASTRING,
+                ['mount -o vers=3 nas-devops:/export/' + mount + ' /apps1_clone'])
+        if inst == "ip":
+            svc_instance.writeProperty(
+                "config/create_user", smf.PropertyType.ASTRING,
+                [args.user])
     elif ((action == "enable") or (action == "disable")):
         getattr(svc_instance, action)("")
     elif action == "state":
@@ -942,13 +1501,14 @@ def service_action(z2, srvc, inst, action, mount=None):
     logger.info("service %s for %s:%s. successful.", action, srvc, inst)
 
 
-def display_img_stat(dc, host, dst_zone):
+def display_img_stat(dc, host, dst_zone, display_img_stat):
 
     """Displays zone related information.
     accepts: data center, global zone, zone name.
     prints: zone name, global zone, IP address, Port, mount point.
     """
     set_logging(dst_zone + "(" + dc.upper() + ")")
+    logger.info("Note: you are accessing this application as a: %s", user_role_des)
     logger.info("Verifying status...")
     print "Pulling status...\n------------------------------"
     print "Finding server containing zone for %s in %s." % (jiraid, dc.upper())
@@ -993,6 +1553,7 @@ def display_img_stat(dc, host, dst_zone):
         else:
             connect_to_zone(z2, "confmgr")
             ipAddr, ipPort = service_action(z2, "network/getIpPort", "ip", "get_prop")
+            cur_db_mount = service_action(z2, "application/informix_mount", "ifxsrc", "get_prop")
             if dc == "ha":
                 logger.info("******* Informix Database is only running in %s *******", host[dc])
                 print("===============================================================")
@@ -1004,18 +1565,19 @@ def display_img_stat(dc, host, dst_zone):
             else:
                 print "\n-------========= Standby data center =========------- \n        VM/Zone Name: %s \n        Hostname: %s \n        Zone Port: %s \n        DB Port: %s \n        Internal IP Address: %s" % (z2.name, host[dc], ipPort, int(ipPort) + 500, ipAddr)
             close_con()
-            print "        VM Mount source: apps1_%s" % (matchzone)
-            print "        DB Mount source: ifxdb-do_%s" % (matchzone)
-            print "        VM Mount destination: /apps1"
-            print "        DB Mount destination: /ifxsrv"
+            print "        APPS Mount: /apps1"
+            print "        DB Mount: /ifxsrv"
+            print "        APPS Mount source: /export/apps1_%s" % (matchzone)
+            print "        DB Mount source: %s" % (cur_db_mount)
 
 
-def rotate_img(dc, host, dst_zone):
+def rotate_img(dc, host, user_role, user_role_des, dst_zone=None):
 
     """Rotate / sync a zone source to destination mount point.
     accepts: data center, global zone, zone name.
     """
     set_logging(dst_zone + "(" + dc.upper() + ")")
+    logger.info("Note: you are accessing this application as a: %s", user_role_des)
     logger.info("Validating VM/Zone status.. please wait...")
     print "Finding server containing zone for %s in %s." % (jiraid, dc.upper())
     logger.info("Finding server containing zone for %s.", jiraid)
@@ -1036,6 +1598,11 @@ def rotate_img(dc, host, dst_zone):
         logger.error("Cannot find VM/Zone for %s.", jiraid)
         sys.exit(1)
 
+    if list(matchzone)[5] == "v":
+        print "ERROR: Cannot rotate VM/zone of type DB!!"
+        logger.error("ERROR: Cannot rotate VM/zone of type DB.")
+        sys.exit(1)
+
     zfssrcsnap = "snap_" + matchzone
     if args.rotateImg == "app":
         zfssrcclone = "apps1_" + matchzone
@@ -1043,9 +1610,9 @@ def rotate_img(dc, host, dst_zone):
         zfssrcfs = "apps1-prod"
         zfsmount = "/apps1"
     else:
-        zfssrcclone = "ifxdb-do_" + matchzone
-        zfsdstclone = "ifxdb-do_" + dst_zone
-        zfssrcfs = "ifxdb-do"
+        zfssrcclone = "ifxdb-do_" + "v-" + str(db_version) + "-" + matchzone
+        zfsdstclone = "ifxdb-do_" + "v-" + str(db_version) + "-" + dst_zone
+        zfssrcfs = "ifxdb-do_" + "v-" + str(db_version)
         zfsmount = "/ifxsrv"
     snap = verif_snap(zfssrcsnap, zfssrcfs)
 
@@ -1093,7 +1660,7 @@ def rotate_img(dc, host, dst_zone):
         logger.info("Source: %s", zfssrcfs)
         logger.info("Destination: %s",  zfsdstclone)
         logger.info("Please wait...")
-        clone = create_clone(zfsdstsnap, zfsdstclone, zfssrcfs)
+        clone = create_clone(zfsdstsnap, zfsdstclone, zfssrcfs, "500G")
         if clone == 201:
             logger.info("Successfully created clone %s",  zfsdstclone)
         else:
@@ -1158,6 +1725,9 @@ def rotate_img(dc, host, dst_zone):
             # Mount new clone as [/apps1|/ifxsrv]
             service_action(z2, "application/apps1_mount", "apps1src", "enable")
         else:
+            # Set informix new mount
+            service_action(z2, "application/informix_mount", "ifxsrc", "set_prop", zfssrcclone)
+            # Mount informix new mount
             service_action(z2, "application/informix_mount", "ifxsrc", "enable")
             # Update Informix IP/port
             service_action(z2, "application/informix_port", "ifxport", "refresh")
@@ -1175,6 +1745,8 @@ def rotate_img(dc, host, dst_zone):
             service_action(z2, "application/informix_mount", "ifxsrc", "disable")
             # Un-mount /ifxsrv orignal informix mount
             service_action(z2, "application/informix_mount", "ifxsrc", "disable")
+            # Set informix new mount
+            service_action(z2, "application/informix_mount", "ifxsrc", "set_prop", zfssrcclone)
             # Mount new clone as /ifxsrv
             service_action(z2, "application/informix_mount", "ifxsrc", "enable")
             # Update Informix IP/port
@@ -1194,6 +1766,7 @@ def verif_snap_availability(dc, host):
     returns: ZFS snapshot / clone name exists.
     """
     logger.info('Validating configuration request.')
+    zfssrcfslist.append("ifxdb-do_" + "v-" + str(db_version))
     for zfssrcfs in zfssrcfslist:
         snap = verif_snap(zfsdstsnap, zfssrcfs)
         if snap == 200:
@@ -1204,18 +1777,19 @@ def verif_snap_availability(dc, host):
         else:
             logger.info("Snapshot %s in %s is valid. continuing...", zfsdstsnap, zfssrcfs)
 
+    zfsdstclonelist.append("ifxdb-do_" + "v-" + str(db_version) + "-" + dst_zone)
     for zfsdstclone in zfsdstclonelist:
-        clone = verif_clone(zfsdstsnap, zfsdstclone)
+        clone = verif_clone(zfsdstclone)
         if clone == 200:
             close_con()
-            print "Clone %s exists. Error code: %s \nExiting." % (zfsdstclone)
+            print "Clone %s exists. Error code: %s \nExiting." % (zfsdstclone, clone)
             logger.error("Clone %s exists. Error code: %s exiting.", zfsdstclone, clone)
             sys.exit(snap)
         else:
             logger.info("Clone %s is valid. continuing...", zfsdstclone)
 
 
-def clone_fs(dc, host, dst_z, drhost):
+def clone_fs(dc, host, dst_z, drhost, dst_zone=None):
     """Create a ZFS snapshot.
     accepts: data center, host, zone name (snap/clone name)
     returns: ZFS snapshot / clone created successful.
@@ -1259,7 +1833,7 @@ def clone_fs(dc, host, dst_z, drhost):
             logger.info("Source: /%s", zfssrcfs)
             logger.info("Destination: %s",  zfsdstclone)
             logger.info("Please wait...")
-            clone = create_clone(zfsdstsnap, zfsdstclone, zfssrcfs)
+            clone = create_clone(zfsdstsnap, zfsdstclone, zfssrcfs, "400G")
             if clone == 201:
                 logger.info("Successfully created clone %s",  zfsdstclone)
             else:
@@ -1269,7 +1843,7 @@ def clone_fs(dc, host, dst_z, drhost):
                 sys.exit(1)
 
 
-def clone_vm(dc, host):
+def clone_vm(dc, host, user_role, user_role_des=None, appType=None, dst_zone=None):
     """Clone zone and file system - source to destination.
     accepts: data center, global zone.
     """
@@ -1279,6 +1853,7 @@ def clone_vm(dc, host):
     print "Cloning VM/Zone %s and associated file systems\nProgress is being logged to %s\n--------------------------------" % (dst_zone, log_output)
 
     # Checking source zone exists.
+    logger.info("Note: you are accessing this application as a: %s", user_role_des)
     logger.info("Checking source zone exists...")
     if dc == "dr":
         host_connect(host)
@@ -1357,16 +1932,95 @@ def clone_vm(dc, host):
     # Restart LDAP service after certficates are copied
     service_action(dst_z, "network/ldap/client", "default", "restart")
 
-    # Enable service to mount /apps1.
-    service_action(dst_z, "application/apps1_mount", "apps1src", "enable")
+    if args.appType != "db":
+        # Enable service to mount /apps1.
+        new_ifx_mount = "ifxdb-do_" + "v-" + str(db_version) + "-" + dst_z.name
+        service_action(dst_z, "application/informix_mount", "ifxsrc", "set_prop", new_ifx_mount)
+        service_action(dst_z, "application/apps1_mount", "apps1src", "enable")
+
+    # Set zone owner 
+    service_action(dst_z, "network/getIpPort", "ip", "set_prop")
 
     # Get zone ip address and port
     ipAddr, ipPort = service_action(dst_z, "network/getIpPort", "ip", "get_prop")
 
     # Enable service to start informix DB.
     if dc == "ha":
-        # Start informix DB.
-        service_action(dst_z, "application/informix_startup", "ifxsrvr", "enable")
+        if args.appType != "db":
+            # Start informix DB.
+            service_action(dst_z, "application/informix_startup", "ifxsrvr", "enable")
+        else:
+            # next_db_version = list_fs("ifxdb-do_v-")
+            #cur_ifx_mount = "ifxdb-do"
+            cur_ifx_mount = "ifxdb-do_" + "v-" + str(db_version)
+            new_ifx_mount = "ifxdb-do_" + "v-" + str(next_db_version + 1)
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "set_prop", cur_ifx_mount)
+            service_action(dst_z, "application/informix_mount", "ifxdst", "set_prop", new_ifx_mount)
+            service_action(dst_z, "application/informix_mount", "none", "set_prop")
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "enable")
+            service_action(dst_z, "application/informix_mount", "ifxdst", "enable")
+
+            # Run rsync
+            service_action(dst_z, "application/informix_mount", "ifxsync", "enable")
+            time.sleep(3)
+            print "Sync to new db %s is in progress.. please be patient... \nThis can take approximately 10-15 minutes to complete. \nNote: The sync is running in HA only i.e. DR will complete first with data available once HA is up." % (new_ifx_mount)
+            while True:
+                service_action(dst_z, "application/informix_mount", "ifxsyncchk", "enable")
+                time.sleep(2)
+                sync_stat = service_action(dst_z, "application/informix_mount", "ifxsync", "get_prop")
+                service_action(dst_z, "application/informix_mount", "ifxsyncchk", "disable")
+                if sync_stat == "running":
+                    logger.info("Sync to /ifxsrv_clone(%s) is still in progress.", new_ifx_mount)
+                    time.sleep(60)
+                elif sync_stat == "initial":
+                    close_con()
+                    logger.error("Sync to %s never started, the return code is: %s", new_ifx_mount, sync_stat)
+                    print "ERROR: Sync to %s never started, the return code is: %s" % (new_ifx_mount, sync_stat)
+                    sys.exit(1)
+                elif sync_stat == "completed":
+                    service_action(dst_z, "application/informix_mount", "ifxsyncchk", "disable")
+                    #service_action(dst_z, "application/informix_mount", "ifxsync", "disable")
+                    logger.info("Sync to /ifxsrv_clone(%s) completed sucssfuly.", new_ifx_mount)
+                    break
+                else:
+                    close_con()
+                    print "ERROR: An error occurred while trying to sync %s, with error code: (%s)" % (new_ifx_mount, sync_stat)
+                    logger.error("An error occurred while trying to sync %s, with error code: (%s)", new_ifx_mount, sync_stat)
+                    sys.exit(1)
+
+            # Umount /ifxsrv and /ifxsrv_clone
+            time.sleep(2)
+            service_action(dst_z, "application/informix_mount", "ifxdst", "disable")
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "disable")
+            time.sleep(10)
+
+            # Set mount to new /ifxsrv
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "set_prop", new_ifx_mount)
+
+            # Mount new /ifxsrv
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "enable")
+
+            # Remove dependency of /apps1
+            service_action(dst_z, "application/informix_startup", "none", "set_prop")
+            # Start informix DB
+            service_action(dst_z, "application/informix_startup", "ifxsrvr", "enable")
+    else:
+
+        if args.appType == "db":
+            # next_db_version = list_fs("ifxdb-do_v-")
+            new_ifx_mount = "ifxdb-do_" + "v-" + str(next_db_version + 1)
+            # Set mount to new /ifxsrv
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "set_prop", new_ifx_mount)
+
+            # Mount new clone as /ifxsrv
+            service_action(dst_z, "application/informix_mount", "ifxsrc", "enable")
+            # Remove dependency of /apps1
+            service_action(dst_z, "application/informix_mount", "none", "set_prop")
+            # Remove dependency of /apps1
+            service_action(dst_z, "application/informix_startup", "none", "set_prop")
+            # Update Informix IP/port
+            # service_action(dst_z, "application/informix_port", "ifxport", "refresh")
+
 
     # Get zone IP adn Port.
     if dc == "ha":
@@ -1383,7 +2037,7 @@ def clone_vm(dc, host):
         logger.info("New VM/Zone is available on %s, with IP Address: %s Port %s DB Port %s", host, ipAddr, ipPort, int(ipPort) + 500)
     close_con()
     print "        VM Mount source: apps1_%s" % (matchzone)
-    print "        DB Mount source: ifxdb-do_%s" % (matchzone)
+    print "        DB Mount source: %s" % (new_ifx_mount)
     print "        VM Mount destination: /apps1"
     print "        DB Mount destination: /ifxsrv"
 
@@ -1399,45 +2053,70 @@ def delete_filesystem():
     """Deletes a ZFS file system."""
     logger.info("Deleting clone/snapshots related to zone: %s", matchzone)
 
+    zfssrcfslist.append("ifxdb-do_" + "v-" + str(db_version))
     for zfssrcfs in zfssrcfslist:
         for snap in get_snap_list('snap_' + matchzone, zfssrcfs):
             logger.info("Snap %s related to zone %s for %s, will be deleted.", snap, matchzone, zfssrcfs)
             delete_clone = delete_snap(snap, zfssrcfs)
             if delete_clone == 204:
-                close_con()
                 logger.info("Clone/snapshot for %s and associated snap_%s deleted successfully.", zfssrcfs, snap)
             else:
                 close_con()
                 print("ERROR: Clone snap_%s for %s deletion failed. Return error code is: %s \nExiting.") % (snap, zfssrcfs, delete_clone)
                 sys.exit(1)
+    close_con()
     logger.info("Uninstall/delete of VM/Zone %s completed successfully.", matchzone)
     print "Uninstall/delete completed successfully."
 
 
-def delete_vm(dc, host_grp):
+def delete_vm(dc, host_grp, user_role, user_role_des=None):
 
     """Deletes a VM/Zone file system.
     accepts: Data center, dictionary of hosts.
     """
-    set_logging(dst_zone + "(" + dc.upper() + ")")
+    if args.appType is None:
+        set_logging(dst_zone + "(" + dc.upper() + ")")
+
     print "Finding server containing zone for %s in %s." % (jiraid, dc.upper())
-    logger.info("Finding server containing zone for %s in %s.", jiraid, dc.upper())
+    if args.appType is None:
+        logger.info("Note: you are accessing this application as a: %s", user_role_des)
+        logger.info("Finding server containing zone for %s in %s.", jiraid, dc.upper())
     for host in host_grp:
-        logger.info("Checking Global Zone %s.", host[dc])
+        if args.appType is None:
+            logger.info("Checking Global Zone %s.", host[dc])
         host_connect(host[dc])
         global matchzone
         matchzone = verify_zone_exist("-" + jiraid + "$")
         if matchzone is not None:
             print "Found %s on %s in %s." % (jiraid, host[dc], dc.upper())
+            set_logging(matchzone + "(" + dc.upper() + ")")
             logger.info("Found %s on %s.", jiraid, host[dc])
             break
         else:
-            logger.info("No VM/Zone for %s on %s.", jiraid, host[dc])
+            if args.appType is None:
+                logger.info("No VM/Zone for %s on %s.", jiraid, host[dc])
     if matchzone is None:
         close_con()
         print "ERROR: Cannot find VM/Zone for %s on any of the servers in %s." % (jiraid, dc.upper())
-        logger.error("Cannot find VM/Zone for %s.", jiraid)
+        if args.appType is None:
+            logger.error("Cannot find VM/Zone for %s.", jiraid)
         sys.exit(1)
+
+    if matchzone.split('-')[2] == 'v' + str(db_version):
+        if dc == "ha":
+            print("\nERROR: Can not delete the active DB copy ifxdb-do_v-%s. \nHA: Please update the active db_version in devops_config.ini and retry.") % (str(db_version))
+            logger.error("ERROR: Can not delete the active DB copy ifxdb-do_v-%s. Please update the active db_version in devops_config.ini and retry.",  str(db_version))
+        else:
+            print("DR: Please update the active db_version in devops_config.ini and retry.")
+            logger.error("Please update the active db_version in devops_config.ini and retry.")
+        sys.exit(0)
+
+    if list(matchzone)[5] == "v":
+        if list_fs("ifxdb-do_v-", "y", "y") < 2:
+            if dc == "ha":
+                print("ERROR: Can not delete the last DB copy ifxdb-do_v-%s. \nPlease correct the problem and retry.") % (str(db_version))
+                logger.error("ERROR: Can not delete the last DB copy ifxdb-do_v-%s. Please correct the problem and retry.",  str(db_version))
+            sys.exit(0)
 
     print "Deleting VM/Zone %s and associated snap_%s on %s.\nProgress is being logged in %s\n--------------------------------" % (matchzone, matchzone, host[dc], log_output)
     logger.info("Deleting VM/Zone %s on %s.", matchzone, host[dc])
@@ -1476,7 +2155,7 @@ def delete_vm(dc, host_grp):
 
     logger.info("Removing zone SSH port mapping configuration.")
     if matchzone != "z-source":
-        del_zone_port(host[dc], matchzone)
+        del_zone_port(host[dc], matchzone, dc, args.user)
     logger.info("Zone SSH port mapping removed successfully.")
     if dc == "ha":
         delete_filesystem()
@@ -1485,11 +2164,48 @@ def delete_vm(dc, host_grp):
 
 if __name__ == "__main__":
 
+    if pwd.getpwuid(os.getuid()).pw_name != "confmgr":
+        print "devops_manager.py can only run as user confmgr."
+        sys.exit(1)
+
+    if args.password is None:
+        while True: 
+            try:
+                user_password = getpass.getpass("Please enter %s's LDAP password :" % args.user) 
+            except Exception as error: 
+                print('ERROR', error) 
+            if user_password:
+                break
+    else:
+        user_password = args.password
+    verify_cred(user_dn, user_password, args.user)
+    user_role, user_role_des = get_user_role(args.user)
+    if user_role:
+        print "Note: you are accessing this application as a:", user_role_des
+    else:
+        print "Access denied."
+        sys.exit(1)
+
+    if args.dbVers == "dbVers":
+        while True:
+            try:
+                new_db_version = raw_input("Please enter a new DB ID: ")
+            except Exception as error:
+                print('ERROR', error)
+            if new_db_version:
+                list_fs("ifxdb-do_v-", None, "verif", new_db_version)
+                update_db_version(new_db_version)
+                break
+    elif args.dbVers is not None:
+        new_db_version = args.dbVers
+        list_fs("ifxdb-do_v-", None, "verif", new_db_version)
+        update_db_version(new_db_version)
+
     if args.listZones is not None:
         print "Checking system resources. please wait...\n"
         for dc in dclist:
             host_grp = dc_host_list(hostdclist, dc)
-            main(dc, host_grp, None)
+            main(dc, host_grp, None, dst_zone, user_role, user_role_des)
         sys.exit(0)
     if drstat == "both":
         for dc in dclist:
@@ -1497,15 +2213,15 @@ if __name__ == "__main__":
                 host_grp = dc_host_list(hostdclist, dc)
                 drhost_grp = dc_host_list(hostdclist, "dr")
                 if args.delete or args.imgStat or args.rotateImg:
-                    main(dc, host_grp, None)
+                    main(dc, host_grp, None, dst_zone, user_role, user_role_des)
                 else:
                     print "Evaluating system resources availability. Please wait..."
-                    hid, host = gz_to_use(dc, host_grp)
-                    main(dc, host_grp[hid-1]['ha'], drhost_grp[hid-1]['dr'])
+                    hid, host = gz_to_use(dc, host_grp, user_role, user_role_des, dst_zone)
+                    main(dc, host_grp[hid-1]['ha'], drhost_grp[hid-1]['dr'], dst_zone, user_role, user_role_des)
             else:
                 host_grp = dc_host_list(hostdclist, dc)
                 hahost_grp = dc_host_list(hostdclist, "ha")
                 if args.delete or args.imgStat or args.rotateImg:
-                    main(dc, host_grp, None)
+                    main(dc, host_grp, None, dst_zone, user_role, user_role_des)
                 else:
-                    main(dc, host_grp[hid-1]['dr'], hahost_grp[hid-1]['ha'])
+                    main(dc, host_grp[hid-1]['dr'], hahost_grp[hid-1]['ha'], dst_zone, user_role, user_role_des)

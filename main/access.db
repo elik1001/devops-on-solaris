@@ -1,0 +1,8 @@
+# Available  Roles are specfied in devops_manager.ini
+# roles are superAdmin:10, admin:9, user:5, guest:1
+root:10:superAdmin
+usera:5:user
+userb:10:superAdmin
+userb:10:superAdmin
+joe:5:user
+jay:9:admin
