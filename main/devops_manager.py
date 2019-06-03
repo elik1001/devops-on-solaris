@@ -3,8 +3,8 @@
 #description     :Creating a DevOps like on Solaris
 #author          :Eli Kleinman
 #release date    :20181018
-#update date     :20190531
-#version         :0.8
+#update date     :20190603
+#version         :0.8.1
 #usage           :python clone_zfs.py
 #notes           :
 #python_version  :2.7.14
@@ -320,12 +320,13 @@ nfs_services = [
 # LDAP certficate list
 if get_config('LDAP', 'ldap') == "yes":
     cert_list = get_config('LDAP_CERTS', 'ITEM_LIST')
+ldap_servers = get_config('LDAP_SERVERS', 'ITEM_LIST')
 
 # Sc Profile xml to use
 sc_profile_templ = get_config('CONFIG', 'sc_profile')
 
 # Set LDAP user DN
-user_dn = "uid=" + args.user + get_config('LDAP_DN','ldapdn')
+user_dn = "uid=" + args.user + get_config('LDAP_DN','ldapusrdn')
 
 # ====================== End of settings ======================
 
@@ -426,8 +427,7 @@ def verify_cred(user_dn, password, user):
     """Verify users ldap credentials.
     accepts: user_dn, password, user
     """
-    ldap_servers = ["nyildpr7.bnh.com:1636", "nyildpr8.bnh.com:1636"]
-    ldap_base = "o=bhphoto.com,dc=bnh,dc=com"
+    ldap_base = get_config('LDAP_DN','ldapbasedn')
     searchFilter = "(&(uid=" + user + ")(objectClass=posixAccount))"
     searchAttribute = ["cn"]
 

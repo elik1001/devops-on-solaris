@@ -43,6 +43,9 @@ optional arguments:
                         details(sum, det)
   -n [], --dbVers []    New / updated DB version
 </pre>
+<br>
+<b>Version 0.8.1</b>
+Miner fix / update to be able to set ldap servers, user dn in the devops_manager.ini file.
 
 <b>Version 0.8</b>
 This version adds many new features, including creating different zone types, security like user/password/roles to create zones, better zone reporting. make sure to read the <a href="VERSION.md">release notes</a> for all changes.
