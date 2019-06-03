@@ -5,7 +5,7 @@
 #release date    :20181018
 #update date     :20190603
 #version         :0.8.1
-#usage           :python clone_zfs.py
+#usage           :python devops_manager.py
 #notes           :
 #python_version  :2.7.14
 #==============================================================================
