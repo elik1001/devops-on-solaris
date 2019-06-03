@@ -1,3 +1,7 @@
+<b>Version 0.8.1</b>
+<b>Update: </b> Update / changed the LDAP server / configuration to be in devops_config.ini.
+
+
 <b>Version 0.8 - Whats new</b>
 
 <b>Added:</b> Added a new db zone type. the db zone type will not rely on zfs snapshots. to snap a new db zone, it will use snapshots for the zone, and rsync to copy the db content, the full process is outlined below.
