@@ -1,16 +1,23 @@
 # devops-on-solaris
 Creating a DevOps like on Solaris
 
+<b>Note</b>
+I am excited to announce a new initiative. we are in middle of replacing/migrating the Devops Manager Python script with a new front-end(Angular) / back-end(NodeJS + Mongo).
+
+I hope to publish preliminary code in the upcoming weeks on Github, still plenty of work to get to a full migration with all features, but basic functionality is almost done.
+
 This repository contains a copy of the Oracle Solaris Python DevOps Script as well as all related reqierd SMF and related startup scripts. compatible / tested with Oracle Solaris 11.3/11.4+
 
 This document provides instructions on how to install and use the Solaris Python DevOps Script. the script helps automate Oracle Solaris Zone deployments as well as snap/cloning a ZFS associated file systems which then gets mounted in the zone by NFS, created on a ZFS Appliance. See the deployment notes for additional details.
 
 <i>Script Options</i>.
 <pre>
-./devops_manager.py -h           
+./devops_manager.py -h
 usage: devops_manager.py [-h] [-e [{test,dev,stage}]] -u USER [-p [PASSWORD]]
-                         [-t [{app,db}]] [-v DBVERSION]
-                         [-s | -d | -r {app,db}] [-U USERID | -a [ALL]]
+                         [-t [{app,db}]] [-v [DBVERSION]]
+                         [-vl [DBLASTVERSION]]
+                         [-s | -d | -r {app,db} | -fr [FULLROTATE]]
+                         [-U USERID | -a [ALL]]
                          [-i  | -l [{sum,det,listZones}] | -n ]
 
 Create VM(zone) with associated /apps1 clone
@@ -24,15 +31,22 @@ optional arguments:
                         password for give login credentials.
   -t [{app,db}], --appType [{app,db}]
                         select zone/VM type. app or db(default is app)
-  -v DBVERSION, --dbVersion DBVERSION
+  -v [DBVERSION], --dbVersion [DBVERSION]
                         create / rotate zone using given db version(default is
-                        db_version in devops_config.ini).
+                        db_version in versions.ini, managed by -n flag).
+  -vl [DBLASTVERSION], --dbLastVersion [DBLASTVERSION]
+                        create / rotate zone using given db version(default is
+                        latest_db_version in versions.ini, managed by -nl
+                        flag).
   -s, --imgStat         returns VM(zone) live information, e.g. Global Zone,
                         IP, Port, File System, details.
   -d, --delete          delete VM(zone) with associated snap(s)
   -r {app,db}, --rotateImg {app,db}
                         rotate / sync update /apps1. for informix DB: refresh
                         to latest DB copy(/ifxsrv).
+  -fr [FULLROTATE], --fullRotate [FULLROTATE]
+                        rotate update /apps1, informix DB, refresh all to the
+                        default copy (unless otherwise noted with -v).
   -U USERID, --userID USERID
                         returns zones created by given user ID.
   -a [ALL], --all [ALL]
@@ -41,9 +55,18 @@ optional arguments:
   -l [{sum,det,listZones}], --listZones [{sum,det,listZones}]
                         list all active zones, options are summary or
                         details(sum, det)
-  -n [], --dbVers []    New / updated DB version
+  -n [], --setDBVers []
+                        Updated App or DB version default version
 </pre>
 <br>
+<b>Version 0.9</b>
+One of the major changes in the new version version 0.9, is. the new version replaces the use of rsync with ZFS local replication, which in some of our use cases 3x-10x faster.
+the script should continue to function the the same with the update to ZFS local replication, the updates are mostly under the covers.
+
+The use of ZFS local replication required a set of 10 ZFSSA operations(REST calls), quite a complex configuration, but is a much safer and efficient process.
+
+Make sure to read the <a href="VERSION.md">release notes</a> for all changes.
+
 <b>Version 0.8.1</b>
 Miner fix / update to be able to set ldap servers, user dn in the devops_manager.ini file.
 
