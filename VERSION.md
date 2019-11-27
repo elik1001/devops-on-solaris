@@ -1,3 +1,22 @@
+<b>Version 0.9</b>
+
+<b>Update: </b>
+One of the major changes in the new version <i>version 0.9</i>, is. the new version replaces the use of <i>rsync</i> with <i>ZFS local replication</i>, which in some of our use cases 3x-10x faster.
+the script should continue to function the the same with the update to ZFS local replication, the updates are mostly under the covers.
+
+The use of ZFS local replication required a set of <i>10 ZFSSA</i> operations(REST calls), quite a complex configuration, but is a much safer and efficient process.
+
+<ol>
+    	<li><b>Added/Enhanced:</b> Migrate APP and DB to use <i>ZFS local replication</i> for new weekly versions (this improved timing down to about 60 seconds for db).</li>
+    	<li><b>Enhanced:</b> Migrate VM zones to use snap/clone from any APP and DB version(s)</li>
+    	<li><b>New:</b> New (-fr) Refresh option, to fully refresh APP and DB</li>
+    	<li><b>Update: </b> (-r [app|db]) to use snaps/clones only (no rsync with long timing).</li>
+    	<li><b>Fixed: </b> left over (better clean-up) connection/disconnect can cause hangs hang bug</li>
+    	<li>.... As usual, bug fixes as well as some new bugs...</li>
+    	<li><b>Added: </b> Add a new DB active field, this will provide the DBA to which DB's instance(s) to update schema.</li>
+    	<li><b>Added: </b> to update new zone data like user/port, db, etc to the new Web UI using <i>Mongodb</i> with a <i>rest</i> call (disabled by default).</li>
+</ol>
+
 <b>Version 0.8.1</b>
 <b>Update: </b> Update / changed the LDAP server / configuration to be in devops_config.ini.
 
